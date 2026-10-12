@@ -1,0 +1,106 @@
+/**
+ * Pembungkus Office.js: deteksi host, tulis ke Excel, dan jendela dialog.
+ * Semua fungsi aman dipanggil di browser biasa (tanpa Office) — akan menolak
+ * dengan pesan yang jelas, bukan crash.
+ */
+
+export type HostStatus = "loading" | "excel" | "browser";
+
+export interface SelectionPayload {
+  type: "selection";
+  page: number;
+  text: string;
+  value: number | null;
+  label: string;
+}
+
+export function readyOffice(): Promise<HostStatus> {
+  return new Promise((resolve) => {
+    const officeGlobal = (globalThis as { Office?: typeof Office }).Office;
+    if (!officeGlobal?.onReady) {
+      resolve("browser");
+      return;
+    }
+    // Jika Office.js tidak siap dalam 4 detik (mis. dibuka di browser biasa), anggap mode browser.
+    const timer = setTimeout(() => resolve("browser"), 4000);
+    officeGlobal.onReady((info) => {
+      clearTimeout(timer);
+      resolve(info.host === officeGlobal.HostType.Excel ? "excel" : "browser");
+    });
+  });
+}
+
+/**
+ * Tulis nilai ke sel aktif dan referensi sumbernya ke sel di sebelah kanan.
+ * Contoh: [125750] [Hal. 3 · Kas dan setara kas · "125.750"]
+ */
+export async function writeToActiveCell(payload: SelectionPayload): Promise<string> {
+  let address = "";
+  await Excel.run(async (context) => {
+    const cell = context.workbook.getActiveCell();
+    const target = cell.getResizedRange(0, 1);
+    const ref = `Hal. ${payload.page} · ${payload.label || "(tanpa label)"} · "${payload.text}"`;
+    target.values = [[payload.value ?? "", ref]];
+    cell.numberFormat = [["#,##0;(#,##0);-"]];
+    target.load("address");
+    await context.sync();
+    address = target.address;
+  });
+  return address;
+}
+
+export type DialogHandle = { close: () => void };
+
+/**
+ * Buka aplikasi yang sama di jendela besar (Office Dialog API).
+ * Di Excel web jendela ini muncul sebagai popup browser.
+ */
+export function openLargeWindow(
+  onMessage: (payload: SelectionPayload) => void,
+  onClosed: () => void,
+): Promise<DialogHandle> {
+  const url = new URL(window.location.href);
+  url.searchParams.set("mode", "dialog");
+  return new Promise((resolve, reject) => {
+    Office.context.ui.displayDialogAsync(
+      url.toString(),
+      { height: 85, width: 70, displayInIframe: false },
+      (result) => {
+        if (result.status === Office.AsyncResultStatus.Failed) {
+          const code = result.error.code;
+          const hint =
+            code === 12009
+              ? "Popup diblokir browser. Izinkan popup untuk situs Excel, lalu coba lagi."
+              : code === 12007
+                ? "Jendela besar sudah terbuka."
+                : `Gagal membuka jendela (kode ${code}): ${result.error.message}`;
+          reject(new Error(hint));
+          return;
+        }
+        const dialog = result.value;
+        dialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
+          if ("message" in arg) {
+            try {
+              const data = JSON.parse(arg.message) as SelectionPayload;
+              if (data.type === "selection") onMessage(data);
+            } catch {
+              /* abaikan pesan yang tidak dikenal */
+            }
+          }
+        });
+        dialog.addEventHandler(Office.EventType.DialogEventReceived, () => onClosed());
+        resolve({ close: () => dialog.close() });
+      },
+    );
+  });
+}
+
+/** Dipanggil dari dalam jendela besar untuk mengirim angka terpilih ke task pane. */
+export function sendToTaskPane(payload: SelectionPayload): boolean {
+  try {
+    Office.context.ui.messageParent(JSON.stringify(payload));
+    return true;
+  } catch {
+    return false;
+  }
+}
