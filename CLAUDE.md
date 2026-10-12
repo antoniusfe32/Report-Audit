@@ -13,6 +13,13 @@
 3. Jangan meniru kode, desain, nama, atau ikon produk komersial (mis. DataSnipper).
 4. Tanda negatif tidak boleh hilang; angka ambigu ditandai, tidak dikonversi diam-diam.
 5. Footing tidak boleh "lulus" bila ada komponen hilang/ambigu atau skala belum ditetapkan.
+6. **Toleransi footing = 0.** Selisih 1 pun = gagal (✗ merah, tampilkan besar selisihnya). Jangan menambah
+   setting toleransi atau status "hampir cocok" — keputusan pemilik.
+7. PDF tidak disimpan di dalam workbook Excel. Tautan ke PDF memakai halaman + koordinat + sidik SHA-256.
+
+## Spesifikasi berjalan
+Spesifikasi Fase 1 yang sudah disepakati ada di `ROADMAP.md`. Ikuti urutan dan detail di sana; tanyakan
+pemilik sebelum menyimpang dari spesifikasi.
 
 ## Teknis
 - React + TypeScript + Vite. pdf.js memakai **build legacy** (`pdfjs-dist/legacy/...`) karena build standar v6
