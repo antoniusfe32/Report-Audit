@@ -38,6 +38,8 @@ Konteks dokumen: draft LK diexport dari Word, **dinyatakan dalam ribuan Rupiah**
       `RA_Register` secara otomatis setiap footing dijalankan/dikoreksi; klik baris register → viewer menyorot
       total + komponennya. Komentar reviewer tidak ditimpa; footing yang hilang setelah koreksi → "tidak berlaku".
 - [ ] Jendela besar: Office tidak mengizinkan add-in me-minimize dialog. Lihat 1.2.
+- [x] Jendela besar ditutup lalu dibuka lagi **tidak perlu memilih PDF lagi**: PDF + progres (koreksi manual, skala,
+      footing aktif, halaman) disimpan di memori panel samping dan dikirim kembali (lihat 1.2).
 
 ### 1.1 Viewer: scroll terus — kode selesai 13 Okt 2026, **menunggu uji pemilik di Excel**
 - [x] Semua halaman ditampilkan berurutan ke bawah; nomor halaman di toolbar ikut berubah saat scroll.
@@ -46,8 +48,10 @@ Konteks dokumen: draft LK diexport dari Word, **dinyatakan dalam ribuan Rupiah**
 - [x] Panel **Diagnostik ekstraksi** TETAP ada selama pengembangan (disembunyikan nanti). Kini ada kolom **Garis**.
 
 ### 1.2 Jendela besar: satu dokumen, panel kecil jadi remote
-- [ ] Klik "Jendela besar" → PDF yang sedang terbuka (+ halaman aktif + hasil footing/tie) **dipindahkan** ke
-      dialog Office. Pengguna tidak perlu memilih file lagi.
+- [x] Klik "Jendela besar" → PDF yang sedang terbuka (+ halaman aktif + hasil footing/tie) **dipindahkan** ke
+      dialog Office. Pengguna tidak perlu memilih file lagi. ✅ 13 Okt 2026 (belum diuji di Excel), termasuk arah
+      sebaliknya: PDF yang dibuka di jendela besar disimpan di panel samping, sehingga jendela besar bisa ditutup
+      dan dibuka lagi tanpa kehilangan progres. Sesi hanya di memori; hilang bila panel samping ditutup.
       Catatan teknis: dialog & task pane tidak berbagi memori/penyimpanan secara andal (storage partitioning di
       Excel web) → kirim isi PDF lewat `messageChild` (DialogApi 1.2) secara **dipotong-potong (chunk) base64**,
       lalu dialog membangun ulang file dan memverifikasi sidik SHA-256.

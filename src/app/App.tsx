@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useReviewer } from "./useReviewer";
 import { useExcelRegister } from "./useExcelRegister";
+import { useDialogSession } from "./useDialogSession";
+import type { ToPaneMessage } from "../services/office/messages";
 import { PdfScrollView } from "../features/viewer/PdfScrollView";
 import { SelectionPanel } from "../features/panel/SelectionPanel";
 import { FootingPanel } from "../features/footing/FootingPanel";
 import { FootingDetail } from "../features/footing/FootingDetail";
 import { footingBlocks, type FootingBlock } from "../domain/footing/blocks";
 import {
+  onParentMessage,
   openLargeWindow,
   readyOffice,
   sendToTaskPane,
@@ -60,20 +63,47 @@ export function App() {
   };
 
   const register = useExcelRegister(r, host, isDialog, flash, dialogRef);
+  const session = useDialogSession(r, host, isDialog, dialogRef);
+  // Pendengar pesan dipasang sekali; selalu teruskan ke versi terbaru hook di atas.
+  const handlers = useRef({ register, session });
+  handlers.current = { register, session };
+
+  // ---- Panel samping: pesan dari jendela besar ----
+  const onPaneMessage = (msg: ToPaneMessage) => {
+    const h = handlers.current;
+    if (msg.type === "selection") setRemote(msg);
+    else if (msg.type === "chunk" && msg.channel === "register") h.register.receiveChunk(msg);
+    else h.session.handlePaneMessage(msg);
+  };
 
   const openDialog = async () => {
     try {
-      dialogRef.current = await openLargeWindow(
-        (msg) => {
-          if (msg.type === "selection") setRemote(msg);
-          else if (msg.type === "register-chunk") register.receiveChunk(msg);
-        },
-        () => (dialogRef.current = null),
-      );
+      dialogRef.current = await openLargeWindow(onPaneMessage, () => (dialogRef.current = null));
+      handlers.current.session.onDialogOpened();
     } catch (err) {
       r.setError({ message: (err as Error).message });
     }
   };
+
+  // ---- Jendela besar: pesan dari panel samping, lalu minta sesi tersimpan ----
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const parentLinked = useRef(false);
+  useEffect(() => {
+    if (!isDialog || host !== "excel" || parentLinked.current) return;
+    parentLinked.current = true;
+    void onParentMessage((m) => {
+      const h = handlers.current;
+      if (m.type === "chunk") h.session.handleDialogChunk(m);
+      else h.register.handleParentMessage(m);
+    }).then((ok) => {
+      if (ok) sendToTaskPane({ type: "dialog-ready" });
+      else
+        setLinkError(
+          "Excel ini belum mendukung pesan ke jendela besar (DialogApi 1.2): PDF dan hasil footing tidak bisa " +
+            "dipindahkan antara jendela besar dan panel samping. Perbarui Excel atau pakai panel samping.",
+        );
+    });
+  }, [host]);
 
 
   const pageCount = r.pdf?.pageCount ?? 0;
@@ -162,6 +192,21 @@ export function App() {
             </div>
           )}
           {status && <div className="notice ok">{status}</div>}
+          {linkError && <div className="notice warn">{linkError}</div>}
+          {isDialog && session.restoring && (
+            <div className="notice info">Memulihkan PDF dan progres dari panel samping…</div>
+          )}
+          {!isDialog && host === "excel" && session.storedName && (
+            <div className="notice info session-note">
+              <span>
+                Sesi tersimpan di panel ini: <strong>{session.storedName}</strong>. Klik <strong>Jendela besar ⧉</strong>{" "}
+                untuk melanjutkan tanpa memilih file lagi. Sesi hilang bila panel ini ditutup.
+              </span>
+              <button type="button" className="link" onClick={session.forget}>
+                Lupakan sesi
+              </button>
+            </div>
+          )}
 
           {r.pdf && (
             <section className="docinfo">
