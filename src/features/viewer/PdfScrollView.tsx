@@ -13,6 +13,19 @@ import type { NumberToken } from "../../domain/pdf/numberTokens";
 import type { Occurrence, MatchType } from "../../domain/matching/findOccurrences";
 import { formatDiff, type TokenStatus } from "../../domain/footing/verticalFooting";
 import type { FootingBlock } from "../../domain/footing/blocks";
+import type { PdfBox } from "../../domain/pdf/numberTokens";
+import { normalizeBox } from "../../domain/snip/sumSnip";
+
+/** Kotak sum snip yang digambar di halaman. */
+export interface SnipShape {
+  id: string;
+  box: PdfBox;
+  /** Teks kecil di pojok kotak, mis. "Σ 125.750 · F". */
+  label: string;
+  kind: "draft" | "saved";
+  status: "foot" | "fail" | "open" | "sum";
+  active: boolean;
+}
 import { MARK_TEXT } from "../footing/marks";
 import type { NavTarget } from "../../app/useReviewer";
 
@@ -37,6 +50,10 @@ interface Props {
   blocks: Map<number, FootingBlock[]> | null;
   /** Footing yang sedang dipilih (bloknya ditebalkan). */
   activeFootingId: string | null;
+  /** Mode sum snip: tarik kotak di halaman. */
+  snipMode: boolean;
+  onSnipBox: (page: number, box: PdfBox) => void;
+  snipShapes: Map<number, SnipShape[]>;
   onSelect: (t: NumberToken) => void;
   onPageChange: (page: number) => void;
 }
@@ -192,6 +209,9 @@ export function PdfScrollView(props: Props) {
             highlight={props.highlight}
             blocks={props.blocks?.get(i + 1) ?? NO_BLOCKS}
             activeFootingId={props.activeFootingId}
+            snipMode={props.snipMode}
+            onSnipBox={props.onSnipBox}
+            snipShapes={props.snipShapes.get(i + 1) ?? NO_SHAPES}
             onSelect={props.onSelect}
           />
         ))}
@@ -202,6 +222,7 @@ export function PdfScrollView(props: Props) {
 
 const EMPTY: NumberToken[] = [];
 const NO_BLOCKS: FootingBlock[] = [];
+const NO_SHAPES: SnipShape[] = [];
 
 const BLOCK_TEXT: Record<FootingBlock["kind"], string> = {
   component: "Angka yang dijumlahkan",
@@ -223,6 +244,9 @@ interface PageProps {
   highlight: Set<string>;
   blocks: FootingBlock[];
   activeFootingId: string | null;
+  snipMode: boolean;
+  onSnipBox: (page: number, box: PdfBox) => void;
+  snipShapes: SnipShape[];
   onSelect: (t: NumberToken) => void;
 }
 
@@ -239,9 +263,28 @@ const PageView = memo(function PageView({
   highlight,
   blocks,
   activeFootingId,
+  snipMode,
+  onSnipBox,
+  snipShapes,
   onSelect,
 }: PageProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  /** Kotak yang sedang ditarik (piksel relatif halaman). */
+  const [drag, setDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const toPdf = (x: number, y: number) => {
+    const [px, py] = vp.convertToPdfPoint(x, y) as number[];
+    return { x: px, y: py };
+  };
+  const localPoint = (e: React.PointerEvent) => {
+    const r = stageRef.current!.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  const toScreen = (b: PdfBox) => {
+    const [ax, ay] = vp.convertToViewportPoint(b.x0, b.y0) as number[];
+    const [bx, by] = vp.convertToViewportPoint(b.x1, b.y1) as number[];
+    return { left: Math.min(ax, bx), top: Math.min(ay, by), width: Math.abs(bx - ax), height: Math.abs(by - ay) };
+  };
   const [renderError, setRenderError] = useState<string | null>(null);
   const { vp } = layout;
 
@@ -286,6 +329,7 @@ const PageView = memo(function PageView({
 
   return (
     <div
+      ref={stageRef}
       className="page-stage"
       data-page={pageNumber}
       style={{ top: layout.top, left: layout.left, width: layout.width, height: layout.height }}
@@ -310,6 +354,17 @@ const PageView = memo(function PageView({
             />
           );
         })}
+      {active &&
+        snipShapes.map((sh) => (
+          <div
+            key={sh.id}
+            className={`snip-shape sk-${sh.kind} ss-${sh.status}${sh.active ? " is-active" : ""}`}
+            style={toScreen(sh.box)}
+            aria-hidden
+          >
+            <span className="snip-tag">{sh.label}</span>
+          </div>
+        ))}
       {active &&
         tokens.map((t) => {
           const [ax, ay] = vp.convertToViewportPoint(t.box.x0, t.box.y0) as number[];
@@ -361,6 +416,43 @@ const PageView = memo(function PageView({
             </span>
           );
         })}
+      {active && snipMode && (
+        <div
+          className="snip-layer"
+          title="Tarik kotak di atas angka untuk menjumlahkan"
+          onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            e.currentTarget.setPointerCapture(e.pointerId);
+            const p = localPoint(e);
+            setDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+          }}
+          onPointerMove={(e) => {
+            if (!drag) return;
+            const p = localPoint(e);
+            setDrag({ ...drag, x1: p.x, y1: p.y });
+          }}
+          onPointerUp={() => {
+            if (!drag) return;
+            const d = drag;
+            setDrag(null);
+            if (Math.abs(d.x1 - d.x0) < 4 || Math.abs(d.y1 - d.y0) < 4) return; // klik biasa, bukan tarikan
+            onSnipBox(pageNumber, normalizeBox(toPdf(d.x0, d.y0), toPdf(d.x1, d.y1)));
+          }}
+          onPointerCancel={() => setDrag(null)}
+        >
+          {drag && (
+            <div
+              className="snip-drag"
+              style={{
+                left: Math.min(drag.x0, drag.x1),
+                top: Math.min(drag.y0, drag.y1),
+                width: Math.abs(drag.x1 - drag.x0),
+                height: Math.abs(drag.y1 - drag.y0),
+              }}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 });

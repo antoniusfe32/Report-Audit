@@ -56,8 +56,26 @@ export interface PaneMirrorMsg {
   fingerprint: string | null;
 }
 
-export type ToPaneMessage = SelectionPayload | ChunkMsg | SessionStateMsg | DialogReadyMsg;
-export type ToDialogMessage = RegisterStatusMsg | RegisterPickMsg | ChunkMsg | SessionStateMsg | PaneMirrorMsg;
+/** Jendela besar minta panel samping menulis nilai ke sel aktif (dialog tidak bisa mengakses workbook). */
+export interface WriteCellMsg {
+  type: "write-cell";
+  value: number;
+}
+/** Hasil penulisan sel aktif, panel samping → jendela besar. */
+export interface CellStatusMsg {
+  type: "cell-status";
+  ok: boolean;
+  text: string;
+}
+
+export type ToPaneMessage = SelectionPayload | ChunkMsg | SessionStateMsg | DialogReadyMsg | WriteCellMsg;
+export type ToDialogMessage =
+  | RegisterStatusMsg
+  | RegisterPickMsg
+  | ChunkMsg
+  | SessionStateMsg
+  | PaneMirrorMsg
+  | CellStatusMsg;
 
 /** Ukuran per pesan (karakter). Batas resmi tidak didokumentasikan; nilai ini konservatif. */
 export const CHUNK_SIZE = 64_000;

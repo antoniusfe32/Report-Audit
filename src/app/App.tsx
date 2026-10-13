@@ -9,10 +9,17 @@ import { FootingPanel } from "../features/footing/FootingPanel";
 import { FootingDetail } from "../features/footing/FootingDetail";
 import { footingBlocks, type FootingBlock } from "../domain/footing/blocks";
 import { pageDiagnostics } from "../domain/footing/diagnostics";
+import { evaluateSnip, orientationOf, selectTokens, suggestTotal, type Snip } from "../domain/snip/sumSnip";
+import { formatAmount } from "../domain/parsing/parseAmount";
+import { formatDiff } from "../domain/footing/verticalFooting";
+import type { PdfBox } from "../domain/pdf/numberTokens";
+import { SnipPanel } from "../features/snip/SnipPanel";
+import type { SnipShape } from "../features/viewer/PdfScrollView";
 import {
   onParentMessage,
   openLargeWindow,
   readyOffice,
+  writeValueToActiveCell,
   sendToTaskPane,
   writeToActiveCell,
   type DialogHandle,
@@ -74,6 +81,7 @@ export function App() {
   const onPaneMessage = (msg: ToPaneMessage) => {
     const h = handlers.current;
     if (msg.type === "selection") setRemote(msg);
+    else if (msg.type === "write-cell") void writeCell(msg.value, true);
     else if (msg.type === "chunk" && msg.channel === "register") h.register.receiveChunk(msg);
     else h.session.handlePaneMessage(msg);
   };
@@ -97,7 +105,8 @@ export function App() {
     parentLinked.current = true;
     void onParentMessage((m) => {
       const h = handlers.current;
-      if (m.type === "register-pick" || m.type === "register-status") h.register.handleParentMessage(m);
+      if (m.type === "cell-status") flashRef.current(m.text);
+      else if (m.type === "register-pick" || m.type === "register-status") h.register.handleParentMessage(m);
       else h.session.handleParentMessage(m);
     }).then((ok) => {
       if (ok) sendToTaskPane({ type: "dialog-ready" });
@@ -111,6 +120,83 @@ export function App() {
 
 
   const pageCount = r.pdf?.pageCount ?? 0;
+
+  // ---------------- Sum snip ----------------
+  const [snipMode, setSnipMode] = useState(false);
+  const [draft, setDraft] = useState<Snip | null>(null);
+  const flashRef = useRef(flash);
+  flashRef.current = flash;
+  const tokensById = useMemo(() => new Map(r.tokens.map((t) => [t.id, t])), [r.tokens]);
+
+  const onSnipBox = (page: number, box: PdfBox) => {
+    const sel = selectTokens(r.tokens, page, box);
+    if (sel.length === 0) {
+      flash("Tidak ada angka di dalam kotak.");
+      return;
+    }
+    const total = suggestTotal(sel, { rules: r.rules?.[page - 1] ?? [], boldFonts: r.boldFonts });
+    const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    setDraft({ id, page, box, tokenIds: sel.map((t) => t.id), totalId: total?.id ?? null });
+    r.setActiveSnipId(null);
+  };
+
+  const draftEval = useMemo(
+    () => (draft ? evaluateSnip(draft, tokensById, !!r.pageScales[draft.page - 1]) : null),
+    [draft, tokensById, r.pageScales],
+  );
+  /** Angka terakhir draf (calon total): paling bawah (vertikal) atau paling kanan (horizontal). */
+  const draftLast = useMemo(() => {
+    if (!draftEval || draftEval.tokens.length < 2) return null;
+    const toks = draftEval.tokens;
+    return orientationOf(toks) === "horizontal"
+      ? [...toks].sort((a, b) => a.box.x0 - b.box.x0)[toks.length - 1]
+      : toks[toks.length - 1];
+  }, [draftEval]);
+
+  /** Tulis nilai ke sel aktif (panel samping); `fromDialog` = permintaan dari jendela besar. */
+  const writeCell = async (value: number, fromDialog: boolean) => {
+    try {
+      const addr = await writeValueToActiveCell(value);
+      const text = `Jumlah ${formatAmount(value, r.locale)} ditulis ke ${addr.split("!").pop()}`;
+      flashRef.current(text);
+      if (fromDialog) dialogRef.current?.send({ type: "cell-status", ok: true, text });
+    } catch (err) {
+      const text = `Gagal menulis ke Excel: ${String(err)}`;
+      if (fromDialog) dialogRef.current?.send({ type: "cell-status", ok: false, text });
+      else r.setError({ message: "Gagal menulis ke Excel.", detail: String(err) });
+    }
+  };
+
+  const saveDraft = () => {
+    if (!draft) return;
+    r.addSnip(draft);
+    r.setActiveSnipId(draft.id);
+    setDraft(null);
+  };
+  const sendDraftToExcel = () => {
+    if (!draft || !draftEval) return;
+    const value = draftEval.sum;
+    saveDraft();
+    if (isDialog) {
+      if (sendToTaskPane({ type: "write-cell", value })) flash("Dikirim ke panel samping untuk ditulis ke sel aktif…");
+      else flash("Gagal mengirim ke panel samping. Pastikan panel samping Report Audit masih terbuka.");
+    } else void writeCell(value, false);
+  };
+
+  const snipShapes = useMemo(() => {
+    const m = new Map<number, SnipShape[]>();
+    const add = (page: number, sh: SnipShape) => m.set(page, [...(m.get(page) ?? []), sh]);
+    const tag = (ev: { sum: number; status: string; difference: number | null }) =>
+      `Σ ${formatAmount(ev.sum, r.locale)}` +
+      (ev.status === "foot" ? " · F" : ev.status === "fail" ? ` · ✗ ${formatDiff(ev.difference ?? 0)}` : ev.status === "open" ? " · ○" : "");
+    for (const ev of r.snipEvals) {
+      add(ev.snip.page, { id: ev.snip.id, box: ev.snip.box, label: tag(ev), kind: "saved", status: ev.status, active: ev.snip.id === r.activeSnipId });
+    }
+    if (draftEval) {
+      add(draftEval.snip.page, { id: "draft", box: draftEval.snip.box, label: tag(draftEval), kind: "draft", status: draftEval.status, active: true });
+    }
+    return m;
+  }, [r.snipEvals, r.activeSnipId, draftEval, r.locale]);
 
   // Sorot susunan footing dari angka terpilih: komponen dari total, atau total + komponen saudaranya.
   const selectedStatus = r.selected ? r.footing?.byToken.get(r.selected.id) : undefined;
@@ -196,6 +282,17 @@ export function App() {
             </div>
           )}
           {status && <div className="notice ok">{status}</div>}
+          {r.lastAction && (
+            <div className="notice info undo-note">
+              <span>{r.lastAction}</span>
+              <button type="button" onClick={r.undo}>
+                ↶ Urungkan
+              </button>
+              <button type="button" className="link" onClick={r.dismissLastAction} aria-label="Tutup">
+                ✕
+              </button>
+            </div>
+          )}
           {linkError && <div className="notice warn">{linkError}</div>}
           {session.restoring && (
             <div className="notice info">
@@ -284,6 +381,9 @@ export function App() {
               highlight={highlight}
               blocks={blocks}
               activeFootingId={activeFootingId}
+              snipMode={snipMode}
+              onSnipBox={onSnipBox}
+              snipShapes={snipShapes}
               onSelect={handleSelect}
               onPageChange={r.setPage}
             />
@@ -316,6 +416,37 @@ export function App() {
                 </button>
               )}
             </section>
+          )}
+          {r.pdf && (
+            <SnipPanel
+              snipMode={snipMode}
+              onToggleMode={() => {
+                if (!snipMode) r.ensureLayout();
+                setSnipMode(!snipMode);
+              }}
+              draft={draftEval}
+              draftLast={draftLast}
+              onDraftTotal={(useLast) => draft && setDraft({ ...draft, totalId: useLast && draftLast ? draftLast.id : null })}
+              onSave={saveDraft}
+              onSendToExcel={host === "excel" ? sendDraftToExcel : null}
+              onDiscard={() => setDraft(null)}
+              saved={r.snipEvals}
+              activeId={r.activeSnipId}
+              onPick={(ev) => {
+                r.setActiveSnipId(ev.snip.id);
+                const focus = ev.total ?? ev.tokens[0];
+                if (focus) {
+                  r.select(focus);
+                  r.goTo(focus);
+                }
+              }}
+              onRemove={(id) => {
+                r.removeSnip(id);
+                if (r.activeSnipId === id) r.setActiveSnipId(null);
+              }}
+              locale={r.locale}
+              excelNote={host === "excel" ? null : "Mode pratinjau browser: Kirim ke Excel hanya tersedia di dalam Excel."}
+            />
           )}
           <SelectionPanel
             token={r.selected}
@@ -357,7 +488,8 @@ export function App() {
               scaleSummary={r.scaleSummary}
               scaleChoice={r.scaleChoice}
               documentScale={r.documentScale}
-              overrideCount={Object.keys(r.overrides).length}
+              overrides={r.overrides}
+              onCancelOverride={(id) => r.setOverride(id, null)}
               onRun={r.runFooting}
               onHide={() => r.setFootingOn(false)}
               onScaleChoice={r.setScaleChoice}

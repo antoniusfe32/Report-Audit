@@ -97,7 +97,7 @@ describe("planRegisterUpdate", () => {
   });
 
   it("baris dokumen lain dan jenis lain tidak disentuh", () => {
-    const existing = [row("F-a", "F cocok", "", "lainlainlain"), row("S-1", "Sum snip", "", "ab12cd34ef56", "Sum snip")];
+    const existing = [row("F-a", "F cocok", "", "lainlainlain"), row("T-1", "Tie", "", "ab12cd34ef56", "Tie")];
     const plan = planRegisterUpdate(existing, [row("F-z", "F cocok")]);
     expect(plan.updates).toEqual([]);
     expect(plan.stale).toEqual([]);

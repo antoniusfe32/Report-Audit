@@ -9,6 +9,7 @@
  */
 import type { NumberToken, PdfBox } from "../pdf/numberTokens";
 import type { Footing, FootingResult } from "../footing/verticalFooting";
+import type { SnipEvaluation } from "../snip/sumSnip";
 
 export const REGISTER_SHEET = "RA_Register";
 export const REGISTER_TABLE = "RA_Register";
@@ -50,6 +51,10 @@ export const STATUS_TEXT: Record<Footing["status"], string> = {
   open: "○ cek manual",
 };
 export const STALE_STATUS = "tidak berlaku";
+/** Sum snip tanpa total pembanding: hanya jumlah. */
+export const SUM_ONLY_STATUS = "Σ jumlah";
+/** Jenis baris yang dikelola otomatis oleh aplikasi (boleh diberi status "tidak berlaku"). */
+export const MANAGED_TYPES = ["Footing", "Sum snip"];
 
 /** Lokasi angka yang terlibat, disimpan sebagai JSON di kolom tersembunyi. */
 export interface RegisterLocation {
@@ -81,6 +86,7 @@ export function footingRows(result: FootingResult, tokens: NumberToken[], finger
   const byId = new Map(tokens.map((t) => [t.id, t]));
   const rows: RegisterRow[] = [];
   for (const f of result.footings) {
+    if (f.snipId) continue; // baris sum snip disusun oleh snipRows
     const total = byId.get(f.totalId);
     if (!total) continue;
     const involved = [total, ...f.componentIds.map((id) => byId.get(id)).filter((t): t is NumberToken => !!t)];
@@ -109,6 +115,55 @@ export function footingRows(result: FootingResult, tokens: NumberToken[], finger
   return rows;
 }
 
+const SNIP_STATUS: Record<SnipEvaluation["status"], string> = {
+  foot: STATUS_TEXT.foot,
+  fail: STATUS_TEXT.fail,
+  open: STATUS_TEXT.open,
+  sum: SUM_ONLY_STATUS,
+};
+
+/** Baris register untuk setiap sum snip (dengan atau tanpa total pembanding). */
+export function snipRows(evals: SnipEvaluation[], fingerprint: string): RegisterRow[] {
+  return evals
+    .filter((ev) => ev.tokens.length > 0)
+    .map((ev) => {
+      const focus = ev.total ?? ev.tokens[0];
+      const loc: RegisterLocation = {
+        v: 1,
+        doc: fingerprint,
+        page: ev.snip.page,
+        focus: focus.id,
+        ids: ev.tokens.map((t) => t.id),
+        boxes: ev.tokens.map(boxOf),
+      };
+      const row: RegisterRow = [];
+      row[COL.id] = `S-${ev.snip.id}`;
+      row[COL.type] = "Sum snip";
+      row[COL.page] = ev.snip.page;
+      row[COL.label] = ev.total
+        ? ev.total.label || "(tanpa label)"
+        : `${focus.label || "(tanpa label)"} (${ev.tokens.length} angka)`;
+      row[COL.reported] = ev.total ? (ev.total.parsed.value ?? "") : "";
+      row[COL.computed] = ev.sum;
+      row[COL.difference] = ev.difference ?? "";
+      row[COL.status] = SNIP_STATUS[ev.status];
+      row[COL.comment] = "";
+      row[COL.fingerprint] = shortFingerprint(fingerprint);
+      row[COL.location] = JSON.stringify(loc);
+      return row;
+    });
+}
+
+/** Semua baris register untuk dokumen ini: footing otomatis (bila dijalankan) + semua sum snip. */
+export function registerRows(
+  footing: FootingResult | null,
+  snips: SnipEvaluation[],
+  tokens: NumberToken[],
+  fingerprint: string,
+): RegisterRow[] {
+  return [...(footing ? footingRows(footing, tokens, fingerprint) : []), ...snipRows(snips, fingerprint)];
+}
+
 export interface RegisterPlan {
   /** Baris lama yang diperbarui (indeks baris badan tabel). */
   updates: { index: number; row: RegisterRow }[];
@@ -128,7 +183,7 @@ const isBlank = (row: Cell[]) => row.every((c) => c === "" || c === null || c ==
  * - Baris footing lama dari dokumen yang sama yang tidak muncul lagi → status "tidak berlaku" (tidak dihapus).
  * - Baris milik dokumen lain / jenis lain tidak disentuh.
  */
-export function planRegisterUpdate(existing: Cell[][], fresh: RegisterRow[], type = "Footing"): RegisterPlan {
+export function planRegisterUpdate(existing: Cell[][], fresh: RegisterRow[], types: string[] = MANAGED_TYPES): RegisterPlan {
   const plan: RegisterPlan = { updates: [], stale: [], fillBlank: [], appends: [] };
   const key = (r: Cell[]) => `${r[COL.id]}|${r[COL.fingerprint]}`;
   const freshByKey = new Map(fresh.map((r) => [key(r), r]));
@@ -148,7 +203,11 @@ export function planRegisterUpdate(existing: Cell[][], fresh: RegisterRow[], typ
       const row = [...next];
       if (String(old[COL.comment] ?? "") !== "") row[COL.comment] = old[COL.comment];
       plan.updates.push({ index, row });
-    } else if (old[COL.type] === type && fps.has(old[COL.fingerprint]) && old[COL.status] !== STALE_STATUS) {
+    } else if (
+      types.includes(String(old[COL.type])) &&
+      fps.has(old[COL.fingerprint]) &&
+      old[COL.status] !== STALE_STATUS
+    ) {
       plan.stale.push(index);
     }
   });

@@ -21,6 +21,7 @@
 import type { NumberToken, RawTextItem } from "../pdf/numberTokens";
 import type { HRule } from "../pdf/rules";
 import type { Scale } from "./scale";
+import { evaluateSnip, type Snip } from "../snip/sumSnip";
 
 /** Koreksi manual pengguna untuk satu angka. */
 export type Override = "total" | "not-total" | "exclude";
@@ -28,7 +29,7 @@ export type Overrides = Record<string, Override>;
 
 /** ✓ komponen cocok · F total cocok · ✗ total selisih · ○ belum tercakup / perlu cek manual. */
 export type Mark = "check" | "foot" | "fail" | "open";
-export type TotalBasis = "garis" | "tebal" | "label" | "manual";
+export type TotalBasis = "garis" | "tebal" | "label" | "manual" | "snip";
 
 export interface Footing {
   id: string;
@@ -43,6 +44,8 @@ export interface Footing {
   /** Penjelasan untuk tooltip/panel; kosong bila cocok tanpa catatan. */
   reason: string;
   basis: TotalBasis[];
+  /** Diisi bila footing ini berasal dari sum snip (koreksi pengguna). */
+  snipId?: string;
 }
 
 export interface TokenStatus {
@@ -83,9 +86,11 @@ export interface FootingInput {
   overrides?: Overrides;
   /** Nama font tebal (angka bercetak tebal = calon total, seperti garis). */
   boldFonts?: Set<string>;
+  /** Sum snip pengguna; yang memiliki total MENGGANTIKAN footing otomatis untuk total itu. */
+  snips?: Snip[];
 }
 
-const TOTAL_LABEL_RE = /^(jumlah|total|sub[\s-]?(jumlah|total)|neto|bersih)\b/i;
+export const TOTAL_LABEL_RE = /^(jumlah|total|sub[\s-]?(jumlah|total)|neto|bersih)\b/i;
 
 // ---------------------------------------------------------------------------
 // Kolom
@@ -400,8 +405,30 @@ export function computeVerticalFooting(input: FootingInput): FootingResult {
     prevTails = tails;
   }
 
-  // ---------------- Tanda per angka ----------------
+  // ---------------- Sum snip menggantikan footing otomatis ----------------
   const tokenById = new Map(input.tokens.map((t) => [t.id, t]));
+  for (const snip of input.snips ?? []) {
+    if (!snip.totalId) continue;
+    const ev = evaluateSnip(snip, tokenById, !!(input.scales[snip.page - 1] ?? null));
+    if (!ev.total) continue;
+    for (let i = footings.length - 1; i >= 0; i--) if (footings[i].totalId === snip.totalId) footings.splice(i, 1);
+    // Diletakkan di akhir: tanda komponennya menimpa tanda dari footing otomatis.
+    footings.push({
+      id: `s-${snip.id}`,
+      page: snip.page,
+      totalId: ev.total.id,
+      componentIds: ev.components.map((t) => t.id),
+      reported: ev.total.parsed.value ?? 0,
+      computed: ev.sum,
+      difference: ev.difference ?? 0,
+      status: ev.status === "sum" ? "open" : ev.status,
+      reason: ev.reason,
+      basis: ["snip"],
+      snipId: snip.id,
+    });
+  }
+
+  // ---------------- Tanda per angka ----------------
   for (const f of footings) {
     const mark: Mark = f.status === "foot" ? "foot" : f.status === "fail" ? "fail" : "open";
     byToken.set(f.totalId, { mark, reason: totalReason(f), footingId: f.id, difference: f.difference });
@@ -455,6 +482,7 @@ const BASIS_TEXT: Record<TotalBasis, string> = {
   tebal: "angka tebal",
   label: "label baris",
   manual: "ditandai manual",
+  snip: "sum snip (koreksi pengguna)",
 };
 
 function totalReason(f: Footing): string {

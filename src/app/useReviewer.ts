@@ -18,6 +18,7 @@ import { computeVerticalFooting, type Override, type Overrides } from "../domain
 import { detectScale, effectiveScales, pageText, summarizeScales, type Scale } from "../domain/footing/scale";
 import { getPageInfo, getPageLayout, loadPdf, PdfLoadError, type LoadedPdf } from "../services/pdf/pdfService";
 import type { SessionState } from "./session";
+import { evaluateSnip, type Snip } from "../domain/snip/sumSnip";
 
 export interface AppError {
   message: string;
@@ -50,7 +51,15 @@ export function useReviewer() {
   const [rules, setRules] = useState<HRule[][] | null>(null);
   const [boldFonts, setBoldFonts] = useState<Set<string>>(new Set());
   const [footingOn, setFootingOn] = useState(false);
+  /** Garis & font tebal juga dibutuhkan sum snip (usulan total), walau footing otomatis belum dijalankan. */
+  const [layoutWanted, setLayoutWanted] = useState(false);
   const [overrides, setOverrides] = useState<Overrides>({});
+  const [snips, setSnips] = useState<Snip[]>([]);
+  /** Riwayat koreksi (koreksi manual & sum snip) untuk tombol Urungkan. */
+  const history = useRef<{ overrides: Overrides; snips: Snip[]; label: string }[]>([]);
+  const [lastAction, setLastAction] = useState<string | null>(null);
+  /** Sum snip yang sedang disorot (mis. setelah klik barisnya di register Excel). */
+  const [activeSnipId, setActiveSnipId] = useState<string | null>(null);
   const [scaleChoice, setScaleChoice] = useState<ScaleChoice>("auto");
   const loadSeq = useRef(0);
 
@@ -96,6 +105,9 @@ export function useReviewer() {
         setLocale(st?.locale ?? "id");
         setFootingOn(st?.footingOn ?? false);
         setOverrides(st?.overrides ?? {});
+        setSnips(st?.snips ?? []);
+        history.current = [];
+        setLastAction(null);
         setScaleChoice(st?.scaleChoice ?? "auto");
         setPage(startPage);
         setNav((n) => ({ page: startPage, seq: n.seq + 1 }));
@@ -143,7 +155,7 @@ export function useReviewer() {
   // Garis tabel dibaca sekali per dokumen, saat footing pertama kali diaktifkan (juga saat sesi dipulihkan).
   const rulesLoading = useRef(false);
   useEffect(() => {
-    if (!footingOn || !pdf || rules || rulesLoading.current) return;
+    if (!(footingOn || layoutWanted) || !pdf || rules || rulesLoading.current) return;
     rulesLoading.current = true;
     const seq = loadSeq.current;
     (async () => {
@@ -168,7 +180,7 @@ export function useReviewer() {
         setLoading(null);
       }
     })();
-  }, [footingOn, pdf, rules, rawPages]);
+  }, [footingOn, layoutWanted, pdf, rules, rawPages]);
 
   const runFooting = useCallback(async () => {
     if (pdf) setFootingOn(true);
@@ -177,19 +189,73 @@ export function useReviewer() {
   const footing = useMemo(
     () =>
       footingOn && rules
-        ? computeVerticalFooting({ tokens, textItems: rawPages, rules, scales: pageScales, overrides, boldFonts })
+        ? computeVerticalFooting({ tokens, textItems: rawPages, rules, scales: pageScales, overrides, boldFonts, snips })
         : null,
-    [footingOn, rules, tokens, rawPages, pageScales, overrides, boldFonts],
+    [footingOn, rules, tokens, rawPages, pageScales, overrides, boldFonts, snips],
   );
 
-  const setOverride = useCallback((tokenId: string, ov: Override | null) => {
-    setOverrides((o) => {
-      const next = { ...o };
-      if (ov) next[tokenId] = ov;
-      else delete next[tokenId];
-      return next;
-    });
+  // ---------------- Koreksi (dengan riwayat untuk Urungkan) ----------------
+  const latestCorrections = useRef({ overrides, snips });
+  latestCorrections.current = { overrides, snips };
+  const remember = useCallback((label: string) => {
+    history.current.push({ ...latestCorrections.current, label });
+    if (history.current.length > 50) history.current.shift();
+    setLastAction(label);
   }, []);
+
+  const setOverride = useCallback(
+    (tokenId: string, ov: Override | null) => {
+      const text: Record<Override, string> = {
+        total: "ditandai sebagai total",
+        "not-total": "ditandai bukan total",
+        exclude: "dikeluarkan dari footing",
+      };
+      remember(ov ? `Angka ${text[ov]}` : "Koreksi manual dibatalkan");
+      setOverrides((o) => {
+        const next = { ...o };
+        if (ov) next[tokenId] = ov;
+        else delete next[tokenId];
+        return next;
+      });
+    },
+    [remember],
+  );
+
+  const clearOverrides = useCallback(() => {
+    remember("Semua koreksi manual dihapus");
+    setOverrides({});
+  }, [remember]);
+
+  const addSnip = useCallback(
+    (snip: Snip) => {
+      remember("Sum snip disimpan");
+      setSnips((list) => [...list.filter((x) => x.id !== snip.id), snip]);
+    },
+    [remember],
+  );
+
+  const removeSnip = useCallback(
+    (id: string) => {
+      remember("Sum snip dihapus");
+      setSnips((list) => list.filter((x) => x.id !== id));
+    },
+    [remember],
+  );
+
+  /** Kembalikan koreksi ke keadaan sebelum tindakan terakhir. */
+  const undo = useCallback(() => {
+    const prev = history.current.pop();
+    if (!prev) return;
+    setOverrides(prev.overrides);
+    setSnips(prev.snips);
+    setLastAction(history.current.length ? `Dibatalkan. Sebelumnya: ${history.current[history.current.length - 1].label}` : null);
+  }, []);
+
+  /** Evaluasi semua sum snip tersimpan (tetap tersedia walaupun footing otomatis tidak dijalankan). */
+  const snipEvals = useMemo(() => {
+    const byId = new Map(tokens.map((t) => [t.id, t]));
+    return snips.map((sn) => evaluateSnip(sn, byId, !!pageScales[sn.page - 1]));
+  }, [snips, tokens, pageScales]);
 
   // ---------------- Pilihan & navigasi ----------------
   // Pilihan lama mungkin tidak valid lagi setelah locale berubah → cari token dengan id sama.
@@ -214,12 +280,14 @@ export function useReviewer() {
     setScaleChoice((v) => (v === st.scaleChoice ? v : st.scaleChoice));
     setFootingOn((v) => (v === st.footingOn ? v : st.footingOn));
     setOverrides((v) => (JSON.stringify(v) === JSON.stringify(st.overrides) ? v : { ...st.overrides }));
+    const remoteSnips = st.snips ?? [];
+    setSnips((v) => (JSON.stringify(v) === JSON.stringify(remoteSnips) ? v : remoteSnips));
   }, []);
 
   /** Progres review saat ini (dipindahkan bersama PDF ke/dari jendela besar). */
   const session: SessionState = useMemo(
-    () => ({ locale, overrides, scaleChoice, footingOn, page }),
-    [locale, overrides, scaleChoice, footingOn, page],
+    () => ({ locale, overrides, scaleChoice, footingOn, page, snips }),
+    [locale, overrides, scaleChoice, footingOn, page, snips],
   );
 
   return {
@@ -254,7 +322,17 @@ export function useReviewer() {
     runFooting,
     overrides,
     setOverride,
-    clearOverrides: () => setOverrides({}),
+    clearOverrides,
+    snips,
+    snipEvals,
+    addSnip,
+    removeSnip,
+    undo,
+    lastAction,
+    dismissLastAction: () => setLastAction(null),
+    activeSnipId,
+    setActiveSnipId,
+    ensureLayout: () => setLayoutWanted(true),
     scaleSummary,
     scaleChoice,
     setScaleChoice,
