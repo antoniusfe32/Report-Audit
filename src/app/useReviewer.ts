@@ -2,7 +2,7 @@
  * State utama aplikasi: dokumen terbuka, indeks angka, angka terpilih, hasil pencarian, footing.
  * Logika bisnis (parsing, pencarian, footing) tetap di folder domain/; hook ini hanya merangkai.
  */
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PageViewport } from "pdfjs-dist";
 import {
   extractNumberTokens,
@@ -17,6 +17,7 @@ import { findOccurrences } from "../domain/matching/findOccurrences";
 import { computeVerticalFooting, type Override, type Overrides } from "../domain/footing/verticalFooting";
 import { detectScale, effectiveScales, pageText, summarizeScales, type Scale } from "../domain/footing/scale";
 import { getPageInfo, getPageRules, loadPdf, PdfLoadError, type LoadedPdf } from "../services/pdf/pdfService";
+import type { SessionState } from "./session";
 
 export interface AppError {
   message: string;
@@ -52,8 +53,12 @@ export function useReviewer() {
   const [scaleChoice, setScaleChoice] = useState<ScaleChoice>("auto");
   const loadSeq = useRef(0);
 
+  /**
+   * Buka PDF. `restore` = lanjutkan progres yang dipindahkan dari jendela lain; sidik file harus sama
+   * persis dengan yang tercatat (bukti file tidak rusak/berubah saat dipindahkan).
+   */
   const openFile = useCallback(
-    async (file: File) => {
+    async (file: File, restore?: { fingerprint: string; state: SessionState }) => {
       const seq = ++loadSeq.current;
       setError(null);
       setSelected(null);
@@ -73,15 +78,26 @@ export function useReviewer() {
           await loaded.destroy(); // file lain sudah dipilih selama membaca
           return;
         }
+        if (restore && restore.fingerprint !== loaded.fingerprint) {
+          await loaded.destroy();
+          throw new PdfLoadError(
+            "PDF yang dipindahkan tidak identik dengan aslinya.",
+            `Sidik berbeda (diharapkan ${restore.fingerprint.slice(0, 12)}, diterima ${loaded.fingerprint.slice(0, 12)}). Buka PDF secara manual.`,
+          );
+        }
+        const st = restore?.state;
+        const startPage = st ? Math.min(Math.max(1, st.page), loaded.pageCount) : 1;
+        rulesLoading.current = false;
         setPdf(loaded);
         setRawPages(pages);
         setViewports(vps);
         setRules(null);
-        setFootingOn(false);
-        setOverrides({});
-        setScaleChoice("auto");
-        setPage(1);
-        setNav((n) => ({ page: 1, seq: n.seq + 1 }));
+        setLocale(st?.locale ?? "id");
+        setFootingOn(st?.footingOn ?? false);
+        setOverrides(st?.overrides ?? {});
+        setScaleChoice(st?.scaleChoice ?? "auto");
+        setPage(startPage);
+        setNav((n) => ({ page: startPage, seq: n.seq + 1 }));
       } catch (err) {
         if (err instanceof PdfLoadError) setError({ message: err.userMessage, detail: err.detail });
         else setError({ message: "Terjadi kesalahan saat membuka file.", detail: String(err) });
@@ -123,26 +139,34 @@ export function useReviewer() {
   );
 
   // ---------------- Footing ----------------
-  const runFooting = useCallback(async () => {
-    if (!pdf) return;
-    setFootingOn(true);
-    if (rules) return;
+  // Garis tabel dibaca sekali per dokumen, saat footing pertama kali diaktifkan (juga saat sesi dipulihkan).
+  const rulesLoading = useRef(false);
+  useEffect(() => {
+    if (!footingOn || !pdf || rules || rulesLoading.current) return;
+    rulesLoading.current = true;
     const seq = loadSeq.current;
-    const out: HRule[][] = [];
-    try {
-      for (let p = 1; p <= pdf.pageCount; p++) {
-        setLoading(`Membaca garis tabel halaman ${p} dari ${pdf.pageCount}…`);
-        out.push(await getPageRules(pdf.doc, p));
-        if (seq !== loadSeq.current) return;
+    (async () => {
+      const out: HRule[][] = [];
+      try {
+        for (let p = 1; p <= pdf.pageCount; p++) {
+          setLoading(`Membaca garis tabel halaman ${p} dari ${pdf.pageCount}…`);
+          out.push(await getPageRules(pdf.doc, p));
+          if (seq !== loadSeq.current) return;
+        }
+        setRules(out);
+      } catch (err) {
+        setFootingOn(false);
+        setError({ message: "Gagal membaca garis tabel dari PDF.", detail: String(err) });
+      } finally {
+        rulesLoading.current = false;
+        setLoading(null);
       }
-      setRules(out);
-    } catch (err) {
-      setFootingOn(false);
-      setError({ message: "Gagal membaca garis tabel dari PDF.", detail: String(err) });
-    } finally {
-      setLoading(null);
-    }
-  }, [pdf, rules]);
+    })();
+  }, [footingOn, pdf, rules]);
+
+  const runFooting = useCallback(async () => {
+    if (pdf) setFootingOn(true);
+  }, [pdf]);
 
   const footing = useMemo(
     () =>
@@ -175,7 +199,14 @@ export function useReviewer() {
     setNav((n) => ({ page: p, seq: n.seq + 1 }));
   }, []);
 
+  /** Progres review saat ini (dipindahkan bersama PDF ke/dari jendela besar). */
+  const session: SessionState = useMemo(
+    () => ({ locale, overrides, scaleChoice, footingOn, page }),
+    [locale, overrides, scaleChoice, footingOn, page],
+  );
+
   return {
+    session,
     pdf,
     tokens,
     viewports,

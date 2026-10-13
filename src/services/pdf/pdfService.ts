@@ -21,6 +21,11 @@ export interface LoadedPdf {
   /** SHA-256 isi file; dipakai untuk mendeteksi PDF yang berubah versi. */
   fingerprint: string;
   pageCount: number;
+  /**
+   * Isi file di memori (tidak pernah dikirim ke server). Dipakai untuk memindahkan PDF antara panel samping
+   * dan jendela besar tanpa memilih file lagi.
+   */
+  bytes: Uint8Array;
   /** Lepaskan memori & worker pdf.js untuk dokumen ini. */
   destroy: () => Promise<void>;
 }
@@ -64,6 +69,7 @@ export async function loadPdf(file: File): Promise<LoadedPdf> {
       fileSize: file.size,
       fingerprint,
       pageCount: doc.numPages,
+      bytes: new Uint8Array(buffer),
       destroy: () => task.destroy(),
     };
   } catch (err) {

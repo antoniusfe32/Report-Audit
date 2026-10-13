@@ -19,7 +19,7 @@ PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di 
 | Peringatan PDF hasil scan (tanpa teks) | ✅ |
 | Sidik (SHA-256) dokumen, untuk deteksi PDF berganti versi | ✅ (ditampilkan, belum dibandingkan) |
 | Tulis angka terpilih ke sel aktif Excel (+ referensi halaman) | ✅ kode siap, **belum diuji di Excel** |
-| Jendela besar (Office dialog) | ✅ kode siap, **belum diuji di Excel** |
+| Jendela besar (Office dialog); ditutup & dibuka lagi tanpa memilih PDF lagi (sesi di memori panel samping) | ✅ kode siap, **belum diuji di Excel** |
 | **Footing vertikal** satu tombol untuk seluruh dokumen (✓ / F / ✗ selisih / ○), toleransi 0 | ✅ Fase 1.3 — **belum diuji di Excel** |
 | Koreksi manual footing: "ini total" / "bukan total" / "keluarkan dari footing" | ✅ Fase 1.3 — **belum diuji di Excel** |
 | Tampilan footing berupa **blok warna** (biru = dijumlahkan, hijau = total cocok, merah = selisih) | ✅ |
@@ -94,6 +94,9 @@ PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di 
 - [ ] **Lewat jendela besar:** biarkan panel samping terbuka → **Jendela besar ⧉** → buka PDF → **Jalankan footing**.
       Kotak "Register Excel" di jendela besar harus berubah menjadi pesan hijau "Sheet RA_Register diperbarui…".
       Klik baris register di Excel → jendela besar menyorot angkanya.
+- [ ] **Tutup lalu buka lagi jendela besar** (panel samping tetap terbuka): PDF, hasil footing, koreksi manual, dan
+      halaman terakhir harus kembali tanpa memilih file. Panel samping menampilkan "Sesi tersimpan di panel ini".
+- [ ] Buka PDF di panel samping → klik **Jendela besar ⧉** → PDF yang sama langsung terbuka di jendela besar.
 - [ ] Kalau sheet tidak muncul: baca kotak **Register Excel** di panel footing (kuning = tidak terhubung ke Excel,
       merah = pesan error) dan laporkan isinya.
 

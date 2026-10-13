@@ -8,10 +8,10 @@
  */
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { Reviewer } from "./useReviewer";
-import { onParentMessage, sendToTaskPane, type DialogHandle, type HostStatus } from "../services/office/officeService";
+import { sendToTaskPane, type DialogHandle, type HostStatus } from "../services/office/officeService";
 import { footingRows, resolveLocation, shortFingerprint, type RegisterRow } from "../domain/register/register";
 import { syncRegister, watchRegisterSelection, type RegisterPick } from "../services/office/registerService";
-import { ChunkAssembler, toChunks, type RegisterChunk } from "../services/office/messages";
+import { ChunkAssembler, toChunks, type ChunkMsg, type ToDialogMessage } from "../services/office/messages";
 
 export type RegisterMode = "pane" | "dialog" | "off";
 
@@ -21,7 +21,9 @@ export interface RegisterUi {
   busy: boolean;
   sync: () => void;
   /** Panel samping: terima potongan register dari jendela besar. */
-  receiveChunk: (c: RegisterChunk) => void;
+  receiveChunk: (c: ChunkMsg) => void;
+  /** Jendela besar: tangani pesan register dari panel samping. */
+  handleParentMessage: (m: ToDialogMessage) => void;
 }
 
 export function useExcelRegister(
@@ -126,11 +128,11 @@ export function useExcelRegister(
 
   const assembler = useRef(new ChunkAssembler());
   const receiveChunk = useCallback(
-    (c: RegisterChunk) => {
-      const json = assembler.current.add(c);
-      if (json === null) return;
+    (c: ChunkMsg) => {
+      const done = assembler.current.add(c);
+      if (done === null) return;
       try {
-        write(JSON.parse(json) as RegisterRow[], true);
+        write(JSON.parse(done.data) as RegisterRow[], true);
       } catch (err) {
         dialogRef.current?.send({ type: "register-status", ok: false, text: `Data register rusak: ${String(err)}` });
       }
@@ -139,28 +141,16 @@ export function useExcelRegister(
   );
 
   // ---------------- Jendela besar ----------------
-  useEffect(() => {
-    if (mode !== "dialog") return;
-    let cancelled = false;
-    void onParentMessage((m) => {
-      if (cancelled) return;
+  const handleParentMessage = useCallback(
+    (m: ToDialogMessage) => {
       if (m.type === "register-pick") showPick(m.pick);
       if (m.type === "register-status") {
         setStatus({ ok: m.ok, text: m.text });
         setBusy(false);
       }
-    }).then((ok) => {
-      if (!ok && !cancelled) {
-        setStatus({
-          ok: false,
-          text: "Excel ini belum mendukung pesan ke jendela besar (DialogApi 1.2). Jalankan footing dari panel samping.",
-        });
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, showPick]);
+    },
+    [showPick],
+  );
 
   // ---------------- Kirim (otomatis setiap hasil footing berubah) ----------------
   const sync = useCallback(() => {
@@ -170,7 +160,7 @@ export function useExcelRegister(
     if (mode === "pane") {
       write(rows, false);
     } else if (mode === "dialog") {
-      const chunks = toChunks(JSON.stringify(rows), `${Date.now()}`);
+      const chunks = toChunks("register", JSON.stringify(rows), `${Date.now()}`);
       const ok = chunks.every((c) => sendToTaskPane(c));
       setBusy(ok);
       setStatus(
@@ -187,5 +177,5 @@ export function useExcelRegister(
     return () => window.clearTimeout(t);
   }, [mode, r.footing, r.pdf, sync]);
 
-  return { mode, status, busy, sync, receiveChunk };
+  return { mode, status, busy, sync, receiveChunk, handleParentMessage };
 }
