@@ -107,3 +107,30 @@ describe("looksScanned", () => {
     expect(looksScanned([{ page: 1, textItems: 30, numberTokens: 10 }])).toBe(false);
   });
 });
+
+describe("angka terpecah", () => {
+  it("menggabung potongan angka yang bersentuhan (ganti font di tengah angka)", () => {
+    const tokens = extractNumberTokens([item("Sewa", 50, 700), item("9", 300, 700), item(".800.000", 305, 700)], 1, "id");
+    expect(tokens.map((t) => t.parsed.value)).toEqual([9800000]);
+  });
+
+  it("menggabung spasi palsu di dalam sel angka", () => {
+    const tokens = extractNumberTokens([item("1 25.750.420", 300, 700), item("9, 8", 400, 700)], 1, "id");
+    expect(tokens.map((t) => t.parsed.value)).toEqual([125750420, 9.8]);
+  });
+
+  it("tidak menggabung dua angka utuh tanpa pemisah atau yang formatnya jadi tidak sah", () => {
+    const tokens = extractNumberTokens([item("2025 2024", 300, 700), item("4 125.750", 300, 600)], 1, "id");
+    expect(tokens.map((t) => t.text)).toEqual(["2025", "2024", "4", "125.750"]);
+  });
+
+  it("tidak menggabung angka di dalam kalimat", () => {
+    const tokens = extractNumberTokens([item("pada tahun 2024, 25 kapal", 50, 700)], 1, "id");
+    expect(tokens.map((t) => t.text)).toEqual(["2024", "25"]);
+  });
+
+  it("kolom yang berjauhan tidak digabung", () => {
+    const tokens = extractNumberTokens([item("1.000", 300, 700), item("2.000", 380, 700)], 1, "id");
+    expect(tokens.map((t) => t.parsed.value)).toEqual([1000, 2000]);
+  });
+});

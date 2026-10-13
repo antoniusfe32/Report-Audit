@@ -43,6 +43,11 @@ export interface NumberToken {
    * Angka seperti ini tidak dipakai untuk membangun kolom tabel.
    */
   prose: boolean;
+  /**
+   * Potongan teks mentah dari PDF yang membentuk angka ini (untuk diagnostik), mis. ["9", ",8"] bila
+   * angka terpecah menjadi dua potongan teks.
+   */
+  source: string[];
 }
 
 interface WordSpan {
@@ -92,6 +97,91 @@ function classify(word: string, parsed: ParsedAmount): TokenHint {
   return "amount";
 }
 
+/** Teks tanpa huruf (boleh diawali kode mata uang): calon isi sel angka tabel, mis. "(8.220", "9,", "-". */
+function isNumericText(s: string): boolean {
+  const t = s.trim().replace(/^\(?\s*(rp\.?|idr|usd|us\$)\s*/i, "");
+  return t !== "" && /^[\s\d.,()\-–—−]+$/.test(t);
+}
+
+interface CellItem extends RawTextItem {
+  /** Teks mentah setiap potongan yang digabung. */
+  sources: string[];
+  /** Indeks potongan pertama (dipakai untuk id token yang stabil). */
+  index: number;
+}
+
+/**
+ * Word kadang memecah satu angka menjadi beberapa potongan teks PDF (ganti font di tengah angka, kurung
+ * terpisah, dll.). Potongan angka yang bersebelahan pada baris yang sama digabung kembali.
+ * Jarak > 0,6 × tinggi font tidak digabung: itu sudah jarak antarkolom (pdf.js memakai batas yang sama).
+ */
+export function mergeNumberFragments(items: RawTextItem[]): CellItem[] {
+  const cells: CellItem[] = items.map((it, index) => ({ ...it, sources: [it.str], index }));
+  const numeric = cells
+    .filter((c) => isNumericText(c.str))
+    .sort((a, b) => b.transform[5] - a.transform[5] || a.transform[4] - b.transform[4]);
+
+  const absorbed = new Set<number>();
+  const replaced = new Map<number, CellItem>();
+  let cur: CellItem | null = null;
+  for (const it of numeric) {
+    if (cur) {
+      const prev: CellItem = cur;
+      const h: number = prev.height || Math.abs(prev.transform[3]) || 8;
+      const sameLine = Math.abs(it.transform[5] - prev.transform[5]) < 0.2 * h;
+      const gap: number = it.transform[4] - (prev.transform[4] + prev.width);
+      if (sameLine && gap > -0.2 * h && gap <= 0.6 * h) {
+        const joined: CellItem = {
+          ...prev,
+          // Celah yang terlihat sebagai spasi oleh pdf.js (≥ 0,1 em) tetap ditandai spasi.
+          str: prev.str + (gap > 0.1 * h ? " " : "") + it.str,
+          width: it.transform[4] + it.width - prev.transform[4],
+          sources: [...prev.sources, it.str],
+        };
+        cur = joined;
+        replaced.set(joined.index, joined);
+        absorbed.add(it.index);
+        continue;
+      }
+    }
+    cur = it;
+  }
+  return cells.filter((c) => !absorbed.has(c.index)).map((c) => replaced.get(c.index) ?? c);
+}
+
+interface JoinedSpan extends WordSpan {
+  /** Teks asli (dengan spasi) bila beberapa potongan digabung. */
+  joinedFrom?: string;
+}
+
+/**
+ * Di dalam sel angka (tanpa huruf), potongan yang dipisah spasi palsu digabung bila hasilnya angka
+ * berformat sah dengan pemisah ribuan/desimal: "1 25.750.420" → "125.750.420", "9, 8" → "9,8",
+ * "( 8.220.000)" → "(8.220.000)". Dua angka utuh tanpa pemisah ("2025 2024") TIDAK digabung.
+ */
+export function joinNumberFragments(str: string, words: WordSpan[], locale: NumberLocale): JoinedSpan[] {
+  if (words.length < 2 || !isNumericText(str)) return words;
+  const out: JoinedSpan[] = [];
+  let i = 0;
+  while (i < words.length) {
+    let best: JoinedSpan = words[i];
+    let used = i;
+    for (let k = i + 1; k < words.length; k++) {
+      const raw = str.slice(words[i].start, words[k].end);
+      const compact = raw.replace(/\s+/g, "");
+      if (!/[.,]/.test(compact)) continue;
+      const p = parseAmount(compact, locale);
+      if (p.kind === "number" && !p.ambiguous && p.warnings.length === 0) {
+        best = { text: compact, start: words[i].start, end: words[k].end, joinedFrom: raw };
+        used = k;
+      }
+    }
+    out.push(best);
+    i = used + 1;
+  }
+  return out;
+}
+
 export function extractNumberTokens(
   items: RawTextItem[],
   page: number,
@@ -100,13 +190,15 @@ export function extractNumberTokens(
   const tokens: NumberToken[] = [];
   const textItems = items.filter((it) => it.str.trim() !== "");
 
-  textItems.forEach((item, itemIndex) => {
+  for (const item of mergeNumberFragments(textItems)) {
+    const itemIndex = item.index;
     const [, , , , e, f] = item.transform;
     const h = item.height || Math.abs(item.transform[3]) || 8;
     const len = item.str.length || 1;
 
-    const isSingleCell = splitWords(item.str).length === 1;
-    for (const w of splitWords(item.str)) {
+    const words = joinNumberFragments(item.str, splitWords(item.str), locale);
+    const isSingleCell = words.length === 1;
+    for (const w of words) {
       let parsed = parseAmount(w.text, locale);
       // Di dalam kalimat, kurung yang tidak berpasangan biasanya kurung kalimat, bukan tanda negatif:
       // "(2024: Rp15.480)" → jangan anggap 2024 negatif.
@@ -116,6 +208,18 @@ export function extractNumberTokens(
       }
       const isWholeItemDash = parsed.kind === "dash" && item.str.trim() === w.text;
       if (parsed.kind !== "number" && !isWholeItemDash) continue;
+
+      const fragmented = w.joinedFrom !== undefined || item.sources.length > 1;
+      if (fragmented) {
+        const asText = item.sources.length > 1 ? item.sources.map((x) => `«${x}»`).join(" ") : `«${w.joinedFrom}»`;
+        parsed = {
+          ...parsed,
+          warnings: [
+            ...parsed.warnings,
+            `Angka ini terpecah di PDF (${asText}) dan dibaca sebagai satu angka ${w.text}. Mohon cocokkan dengan tampilan.`,
+          ],
+        };
+      }
 
       // Posisi horizontal diperkirakan proporsional terhadap jumlah karakter.
       const x0 = e + (item.width * w.start) / len;
@@ -132,9 +236,10 @@ export function extractNumberTokens(
         label: findRowLabel(textItems, f, h, x0),
         hint: classify(w.text, parsed),
         prose: !isSingleCell && (hasLetters(after) || /^[.,;:]/.test(after)),
+        source: item.sources,
       });
     }
-  });
+  }
 
   return tokens.sort((a, b) => b.box.y1 - a.box.y1 || a.box.x0 - b.box.x0);
 }

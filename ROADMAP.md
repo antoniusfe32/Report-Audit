@@ -23,6 +23,14 @@ Masukan pemilik dari uji Fase 0:
 Konteks dokumen: draft LK diexport dari Word, **dinyatakan dalam ribuan Rupiah**, total ditandai
 **garis di atas angka**. Draft awal sering punya selisih pembulatan — itu harus TERLIHAT, bukan ditoleransi.
 
+### Masukan uji draft asli (13 Okt 2026)
+- [x] Angka terpecah di PDF (mis. "9,8" terbaca "8"; hanya digit belakang yang terbaca) → potongan angka
+      yang bersebelahan kini digabung, diberi peringatan, dan potongan mentahnya tampil di panel
+      ("Potongan PDF") untuk diagnostik. Uji: `samples/contoh-angka-terpecah.pdf`.
+- [x] Tie-out antar halaman mengabaikan tanda (kurung/minus); perbedaan tanda tetap ditampilkan
+      ("tanda berlawanan"), tidak lagi diperlakukan sebagai peringatan merah. Desimal tetap dibedakan.
+- [ ] Sum snip (1.4) belum ada — urutan berikutnya menunggu keputusan pemilik.
+
 ### 1.1 Viewer: scroll terus — kode selesai 13 Okt 2026, **menunggu uji pemilik di Excel**
 - [x] Semua halaman ditampilkan berurutan ke bawah; nomor halaman di toolbar ikut berubah saat scroll.
 - [x] Hanya halaman yang terlihat (± 1 halaman) yang dirender ke canvas, agar PDF 80+ halaman tetap ringan.

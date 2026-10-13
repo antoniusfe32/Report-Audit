@@ -5,10 +5,12 @@ Semua nama perusahaan, bank, dan angka adalah fiktif.
 Jalankan:
   python scripts/make_sample_pdf.py samples/contoh-laporan-keuangan.pdf            (tie-out, Fase 0)
   python scripts/make_sample_pdf.py --footing samples/contoh-footing.pdf           (footing, Fase 1)
+  python scripts/make_sample_pdf.py --terpecah samples/contoh-angka-terpecah.pdf   (angka terpecah)
 """
 import sys
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+from reportlab.pdfbase.pdfmetrics import stringWidth
 
 W, H = A4
 COMPANY = "PT SAMUDERA CONTOH NUSANTARA"
@@ -501,9 +503,65 @@ def footing_sample(path):
     print("footing sample:", path, "aset", fmt(ta[0]), "persediaan", fmt(inv_tot[0]))
 
 
+# =====================================================================
+# PDF sintetis: angka yang TERPECAH menjadi beberapa potongan teks, meniru draft hasil export Word
+# (ganti font di tengah angka, jarak kecil antar-glyph, kurung terpisah). Semua angka fiktif.
+# =====================================================================
+
+def draw_pieces(c, parts, x_right, y, size=9):
+    """Gambar angka rata kanan di x_right dari potongan (teks, font, jarak_sebelum_dalam_em)."""
+    total = sum(stringWidth(t, f, size) + gap * size for t, f, gap in parts)
+    x = x_right - total
+    for t, f, gap in parts:
+        x += gap * size
+        c.setFont(f, size)
+        c.drawString(x, y, t)
+        x += stringWidth(t, f, size)
+
+
+def split_sample(path):
+    d = Doc(path, invariant=1)
+    c = d.c
+    H_, B_ = "Helvetica", "Helvetica-Bold"
+    d.new_page("CATATAN ATAS LAPORAN KEUANGAN", subtitle="31 Desember 2025 dan 2024")
+    d.section("6. BEBAN DIBAYAR DIMUKA")
+    d.header_row(with_note=False)
+    # (label, potongan 2025, potongan 2024) -- nilai sebenarnya ada di komentar
+    rows = [
+        ("Asuransi", [("1", H_, 0), ("25.750.420", H_, 0.3)],          # 125.750.420 (celah 0,3 em)
+                     [("110.200.315", H_, 0)]),
+        ("Sewa", [("9", H_, 0), (".800.000", B_, 0)],                   # 9.800.000 (ganti font)
+                 [("8.", H_, 0), ("700.000", H_, 0.2)]),                # 8.700.000 (celah 0,2 em)
+        ("Uang muka pemasok", [("(", H_, 0), ("2.220", H_, 0.15), (".000)", H_, 0)],   # (2.220.000)
+                              [("(1.950.000)", H_, 0)]),
+        ("Lain-lain", [("3", H_, 0), ("4.120", B_, 0)],                 # 34.120 (ganti font)
+                      [("29.875", H_, 0)]),
+    ]
+    vals = [(125_750_420, 110_200_315), (9_800_000, 8_700_000), (-2_220_000, -1_950_000), (34_120, 29_875)]
+    for (label, p25, p24) in rows:
+        c.setFont(H_, 9)
+        c.drawString(X_LABEL + 8, d.y, label)
+        draw_pieces(c, p25, X_CY, d.y)
+        draw_pieces(c, p24, X_PY, d.y)
+        d.y -= 14
+    tot = (sum(v[0] for v in vals), sum(v[1] for v in vals))
+    d.row("Jumlah", *tot, bold=True, rule=True)
+    d.y -= 10
+    d.section("7. RASIO (angka desimal terpecah)")
+    c.setFont(H_, 9)
+    c.drawString(X_LABEL + 8, d.y, "Rasio lancar")
+    draw_pieces(c, [("9,", H_, 0), ("8", H_, 0.2)], X_CY, d.y)        # 9,8 (celah 0,2 em)
+    draw_pieces(c, [("7", H_, 0), (",5", B_, 0)], X_PY, d.y)           # 7,5 (ganti font)
+    d.y -= 14
+    d.save()
+    print("angka terpecah:", path, "jumlah", fmt(tot[0]), fmt(tot[1]))
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if args and args[0] == "--footing":
         footing_sample(args[1] if len(args) > 1 else "contoh-footing.pdf")
+    elif args and args[0] == "--terpecah":
+        split_sample(args[1] if len(args) > 1 else "contoh-angka-terpecah.pdf")
     else:
         main(args[0] if args else "contoh-laporan-keuangan.pdf")

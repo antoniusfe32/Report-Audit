@@ -33,8 +33,6 @@ export function SelectionPanel({ token, occurrences, locale, onGoTo, actions, ex
   }
 
   const p = token.parsed;
-  const same = occurrences.filter((o) => o.match === "same-value");
-  const signDiff = occurrences.filter((o) => o.match === "sign-mismatch");
 
   return (
     <section className="panel" aria-live="polite">
@@ -53,6 +51,8 @@ export function SelectionPanel({ token, occurrences, locale, onGoTo, actions, ex
         <dd>{token.label || <em>tidak ditemukan</em>}</dd>
         <dt>Jenis</dt>
         <dd>{HINT_LABEL[token.hint]}</dd>
+        <dt title="Potongan teks persis seperti tersimpan di PDF (untuk diagnostik salah baca)">Potongan PDF</dt>
+        <dd className="mono small">{token.source.map((x) => `«${x}»`).join(" ")}</dd>
         {p.footnote && (
           <>
             <dt>Catatan kaki</dt>
@@ -80,20 +80,25 @@ export function SelectionPanel({ token, occurrences, locale, onGoTo, actions, ex
       {extra}
 
       <h2>
-        Lokasi lain dengan nilai sama <span className="count">{occurrences.length}</span>
+        Lokasi lain dengan angka sama <span className="count">{occurrences.length}</span>
       </h2>
+      <p className="muted small">Tanda kurung/minus diabaikan saat mencari; perbedaan tanda tetap ditandai.</p>
       {p.value === 0 && <p className="muted small">Nilai nol tidak dicari (terlalu umum).</p>}
       {occurrences.length === 0 && p.value !== 0 && (
         <p className="muted small">Tidak ditemukan angka yang sama di dokumen ini.</p>
       )}
       <ul className="occ-list">
-        {[...same, ...signDiff].map((o) => (
+        {occurrences.map((o) => (
           <li key={o.token.id}>
             <button type="button" className={`occ occ-${o.match}`} onClick={() => onGoTo(o.token)}>
               <span className="occ-page">Hal. {o.token.page}</span>
               <span className="occ-label">{o.token.label || "(tanpa label)"}</span>
               <span className="occ-val mono">{o.token.text}</span>
-              {o.match === "sign-mismatch" && <span className="tag neg">tanda beda</span>}
+              {o.match === "sign-mismatch" && (
+                <span className="tag sign" title="Angka sama, tanda berlawanan (mis. positif di laporan utama, dalam kurung di CALK)">
+                  tanda berlawanan
+                </span>
+              )}
             </button>
           </li>
         ))}

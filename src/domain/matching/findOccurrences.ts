@@ -3,6 +3,10 @@
  *
  * Hasilnya hanya SARAN lokasi. Angka yang sama belum tentu berhubungan;
  * keputusan tie tetap di tangan reviewer.
+ *
+ * Tanda (kurung/minus) diabaikan saat mencocokkan: angka yang tampil positif di laporan utama sering
+ * tampil dalam kurung di CALK, dan sebaliknya. Tanda tetap dicatat (`sign-mismatch`) dan ditampilkan,
+ * tidak dihilangkan. Pemisah desimal tetap diperhitungkan (9,8 ≠ 98).
  */
 import type { NumberToken } from "../pdf/numberTokens";
 

@@ -14,7 +14,8 @@ PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di 
 | Angka terbaca otomatis dan bisa diklik (garis bawah tipis) | ✅ |
 | Detail angka: teks asli, nilai hasil parsing, halaman, label baris | ✅ |
 | Format Indonesia/US, angka dalam kurung = negatif, "-" = nol | ✅ |
-| **Cari lokasi lain dengan nilai sama**, lalu loncat ke halamannya | ✅ |
+| **Cari lokasi lain dengan angka sama** (tanda kurung/minus diabaikan, tetap ditandai), lalu loncat ke halamannya | ✅ |
+| Angka yang terpecah di PDF (mis. "9" + ",8") digabung kembali + peringatan | ✅ **belum diuji di Excel** |
 | Peringatan PDF hasil scan (tanpa teks) | ✅ |
 | Sidik (SHA-256) dokumen, untuk deteksi PDF berganti versi | ✅ (ditampilkan, belum dibandingkan) |
 | Tulis angka terpilih ke sel aktif Excel (+ referensi halaman) | ✅ kode siap, **belum diuji di Excel** |
@@ -63,6 +64,11 @@ PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di 
 
 ### Fase 1.1 + 1.3 (scroll terus & footing vertikal)
 
+- [ ] Buka `samples/contoh-angka-terpecah.pdf` → klik `125.750.420`: harus terbaca utuh, dengan peringatan
+      "terpecah". Footing tabelnya harus F di kedua kolom.
+- [ ] Di draft asli, klik angka yang sebelumnya salah baca → lihat baris **Potongan PDF** di panel. Laporkan
+      bentuknya (boleh ganti digitnya), mis. `«9» «,8»` atau `«1 25.750»`.
+
 - [ ] Buka `samples/contoh-footing.pdf`. Gulir ke bawah: semua halaman tampil berurutan dan nomor **Hal.** di toolbar ikut berubah.
 - [ ] Ketik `4` di kotak Hal. → viewer langsung bergulir ke halaman 4.
 - [ ] Klik **Jalankan footing (seluruh dokumen)**. Ringkasan harus: **✗ 5**, dan daftar "Total tidak cocok" berisi
@@ -87,7 +93,7 @@ PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di 
 - Pilihan **Skala angka** berlaku untuk halaman yang tidak mencantumkan skala; halaman yang mencantumkan
   "(Dinyatakan dalam ribuan Rupiah)" memakai skalanya sendiri.
 - Persentase (`4,50%`) belum dianggap angka.
-- Pencarian hanya mencari **nilai persis sama** (termasuk beda tanda). Belum ada skala (ribuan/jutaan) atau toleransi pembulatan.
+- Pencarian hanya mencari **angka persis sama** (tanda diabaikan). Belum ada skala (ribuan/jutaan) atau toleransi pembulatan.
 - PDF hasil scan tidak didukung (tidak ada OCR).
 - "Nilai sama" ≠ "tie". Sistem hanya memberi saran; keputusan tetap di reviewer.
 
@@ -102,6 +108,7 @@ npm run build     # hasil ke folder docs/ (yang dilayani GitHub Pages)
 # PDF sintetis (butuh Python + reportlab); data fiktif
 python scripts/make_sample_pdf.py samples/contoh-laporan-keuangan.pdf
 python scripts/make_sample_pdf.py --footing samples/contoh-footing.pdf
+python scripts/make_sample_pdf.py --terpecah samples/contoh-angka-terpecah.pdf
 ```
 
 Aturan kerja untuk Claude Code ada di `CLAUDE.md`. Rencana fase ada di `ROADMAP.md`.
