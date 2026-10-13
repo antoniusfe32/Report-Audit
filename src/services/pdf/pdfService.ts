@@ -6,9 +6,10 @@
 // baru (mis. Map.getOrInsertComputed) yang belum ada di banyak browser / WebView
 // Excel. Build legacy menyertakan polyfill sehingga jalan di browser yang lebih tua.
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
-import type { PDFDocumentProxy } from "pdfjs-dist";
+import type { PDFDocumentProxy, PageViewport } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import type { RawTextItem } from "../../domain/pdf/numberTokens";
+import { extractHorizontalRules, type HRule } from "../../domain/pdf/rules";
 
 // Worker pdf.js dibundel bersama aplikasi (bukan dari CDN pihak ketiga).
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -80,8 +81,14 @@ export async function loadPdf(file: File): Promise<LoadedPdf> {
   }
 }
 
-/** Ambil semua text item satu halaman dalam koordinat PDF. */
-export async function getPageTextItems(doc: PDFDocumentProxy, pageNumber: number): Promise<RawTextItem[]> {
+export interface PageInfo {
+  items: RawTextItem[];
+  /** Viewport skala 1; untuk ukuran lain pakai `viewport.clone({ scale })`. */
+  viewport: PageViewport;
+}
+
+/** Ambil semua text item satu halaman (koordinat PDF) beserta ukuran halamannya. */
+export async function getPageInfo(doc: PDFDocumentProxy, pageNumber: number): Promise<PageInfo> {
   const page = await doc.getPage(pageNumber);
   const content = await page.getTextContent();
   const items: RawTextItem[] = [];
@@ -95,5 +102,15 @@ export async function getPageTextItems(doc: PDFDocumentProxy, pageNumber: number
       });
     }
   }
-  return items;
+  return { items, viewport: page.getViewport({ scale: 1 }) };
+}
+
+/** Garis horizontal satu halaman (penanda total), dalam koordinat PDF. */
+export async function getPageRules(doc: PDFDocumentProxy, pageNumber: number): Promise<HRule[]> {
+  const page = await doc.getPage(pageNumber);
+  const ops = await page.getOperatorList();
+  const rules = extractHorizontalRules(ops, pdfjs.OPS);
+  // Lepaskan cache operator halaman yang sedang tidak tampil, agar PDF besar tetap ringan.
+  page.cleanup();
+  return rules;
 }

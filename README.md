@@ -6,11 +6,11 @@ di Excel web kantor sebelum fitur footing dan tie-out dibangun penuh.
 
 PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di GitHub hanya kode aplikasinya.
 
-## Yang sudah bisa (versi 0.0.1)
+## Yang sudah bisa
 
 | Fitur | Status |
 |---|---|
-| Buka PDF dari laptop, tampilkan per halaman, zoom | ✅ |
+| Buka PDF dari laptop, **scroll terus** semua halaman, zoom | ✅ Fase 1.1 — **belum diuji di Excel** |
 | Angka terbaca otomatis dan bisa diklik (garis bawah tipis) | ✅ |
 | Detail angka: teks asli, nilai hasil parsing, halaman, label baris | ✅ |
 | Format Indonesia/US, angka dalam kurung = negatif, "-" = nol | ✅ |
@@ -19,7 +19,9 @@ PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di 
 | Sidik (SHA-256) dokumen, untuk deteksi PDF berganti versi | ✅ (ditampilkan, belum dibandingkan) |
 | Tulis angka terpilih ke sel aktif Excel (+ referensi halaman) | ✅ kode siap, **belum diuji di Excel** |
 | Jendela besar (Office dialog) | ✅ kode siap, **belum diuji di Excel** |
-| Footing/cross-footing, tie confirm, register di Excel | ⏳ fase berikutnya |
+| **Footing vertikal** satu tombol untuk seluruh dokumen (✓ / F / ✗ selisih / ○), toleransi 0 | ✅ Fase 1.3 — **belum diuji di Excel** |
+| Koreksi manual footing: "ini total" / "bukan total" / "keluarkan dari footing" | ✅ Fase 1.3 — **belum diuji di Excel** |
+| Cross footing horizontal (mutasi ekuitas, aset tetap), tarik kotak, sum snip, register Excel | ⏳ langkah berikutnya |
 
 ## Cara memasang (sekali saja)
 
@@ -59,9 +61,31 @@ PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di 
 - [ ] Coba dengan **satu draft PDF asli** (di laptop saja; jangan upload ke mana pun). Apakah angka dan label terbaca benar?
       Buka **Diagnostik ekstraksi per halaman** kalau ada halaman yang angkanya 0.
 
+### Fase 1.1 + 1.3 (scroll terus & footing vertikal)
+
+- [ ] Buka `samples/contoh-footing.pdf`. Gulir ke bawah: semua halaman tampil berurutan dan nomor **Hal.** di toolbar ikut berubah.
+- [ ] Ketik `4` di kotak Hal. → viewer langsung bergulir ke halaman 4.
+- [ ] Klik **Jalankan footing (seluruh dokumen)**. Ringkasan harus: **✗ 5**, dan daftar "Total tidak cocok" berisi
+      Jumlah aset lancar (selisih 1), JUMLAH LIABILITAS (selisih -1), LABA SEBELUM PAJAK (selisih 1),
+      Saldo 31 Desember 2025 (selisih 1), Jumlah biaya perolehan (selisih -1).
+- [ ] "Total perlu cek manual" berisi 2 × **Jumlah** di hal. 5 (tabel persediaan terpotong dari hal. 4).
+- [ ] Klik salah satu baris ✗ → viewer loncat ke angkanya; panel "Angka terpilih" menampilkan rincian komponen.
+- [ ] Klik angka biasa → **Keluarkan dari footing** → hasil langsung berubah; **Batalkan** mengembalikannya.
+- [ ] Coba dengan **draft PDF asli**: apakah total terbaca (garis di atas angka)? Catat halaman yang hasilnya salah
+      dan buka **Diagnostik** (kolom **Garis**) — angka 0 di kolom Garis berarti garis tabel tidak terbaca.
+- [ ] Coba PDF besar (80+ halaman): apakah scroll tetap lancar?
+
 ## Batasan yang diketahui
 
 - Label baris yang terbungkus ke 2 baris hanya terbaca baris pertamanya.
+- Footing membaca tanda dari PDF: angka **dalam kurung = negatif**. Bila beban disajikan tanpa kurung lalu
+  dikurangkan (mis. "Nilai tercatat = biaya perolehan − akumulasi" dengan akumulasi tanpa kurung), hasilnya ✗ —
+  koreksi manual atau sum snip (Fase 1.4) dibutuhkan.
+- Kolom yang seluruh angkanya 1–2 digit tanpa pemisah ribuan dianggap kolom nomor catatan dan tidak di-footing.
+- Total pertama di halaman yang tampak seperti lanjutan tabel halaman sebelumnya selalu ○ (cek manual),
+  walaupun cocok — lebih aman daripada F palsu.
+- Pilihan **Skala angka** berlaku untuk halaman yang tidak mencantumkan skala; halaman yang mencantumkan
+  "(Dinyatakan dalam ribuan Rupiah)" memakai skalanya sendiri.
 - Persentase (`4,50%`) belum dianggap angka.
 - Pencarian hanya mencari **nilai persis sama** (termasuk beda tanda). Belum ada skala (ribuan/jutaan) atau toleransi pembulatan.
 - PDF hasil scan tidak didukung (tidak ada OCR).
@@ -71,9 +95,13 @@ PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di 
 
 ```
 npm install
-npm test          # unit test + uji integrasi PDF sintetis
+npm test          # unit test + uji integrasi PDF sintetis (samples/*.pdf)
 npm run dev       # server lokal untuk mencoba di browser
 npm run build     # hasil ke folder docs/ (yang dilayani GitHub Pages)
+
+# PDF sintetis (butuh Python + reportlab); data fiktif
+python scripts/make_sample_pdf.py samples/contoh-laporan-keuangan.pdf
+python scripts/make_sample_pdf.py --footing samples/contoh-footing.pdf
 ```
 
 Aturan kerja untuk Claude Code ada di `CLAUDE.md`. Rencana fase ada di `ROADMAP.md`.

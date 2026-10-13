@@ -273,15 +273,41 @@ button.link {
     max-height: calc(100vh - 210px);
   }
 }
-.page-stage {
+.scroll-view {
+  scroll-margin-top: 52px; /* di bawah topbar yang menempel */
+  padding: 0;
+  height: 62vh;
   position: relative;
-  width: fit-content;
-  margin: 0 auto;
+}
+@media (min-width: 860px) {
+  .scroll-view {
+    height: calc(100vh - 210px);
+  }
+}
+.scroll-content {
+  position: relative;
+}
+.page-stage {
+  position: absolute;
   background: #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 .page-stage canvas {
   display: block;
+}
+.page-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #b0b4b9;
+  font-size: 12px;
+}
+.page-error {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
 }
 
 /* kotak angka yang bisa diklik */
@@ -332,6 +358,54 @@ button.link {
   .num.is-focus {
     animation: none;
   }
+}
+
+/* ---------- tanda footing (simbol + warna + tooltip, tidak hanya warna) ---------- */
+:root {
+  --f-ok: #1a7f37;
+  --f-bad: #c0281b;
+  --f-open: #8a9099;
+}
+.num.fm-check,
+.num.fm-foot {
+  border-bottom: 2px solid var(--f-ok);
+}
+.num.fm-fail {
+  border-bottom: 2px solid var(--f-bad);
+  background: rgba(192, 40, 27, 0.1);
+}
+.num.fm-open {
+  border-bottom: 1px dashed var(--f-open);
+}
+.num.is-component {
+  outline: 2px dashed var(--accent);
+  outline-offset: 1px;
+}
+.fbadge {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  line-height: 1;
+  font-weight: 700;
+  pointer-events: none;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+.fbadge.fb-fail {
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 1px var(--f-bad);
+  z-index: 2;
+}
+.fb-check,
+.fb-foot {
+  color: var(--f-ok);
+}
+.fb-fail {
+  color: var(--f-bad);
+}
+.fb-open {
+  color: var(--f-open);
 }
 
 /* ---------- side panel ---------- */
@@ -461,4 +535,103 @@ button.link {
 }
 .stats tbody tr {
   cursor: pointer;
+}
+
+/* ---------- panel footing ---------- */
+.panel h3 {
+  font-size: 12px;
+  margin: 12px 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 6px 0;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.field select {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 4px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.fsummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 4px;
+}
+.chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-weight: 600;
+  background: var(--surface);
+}
+.chip strong {
+  color: var(--ink);
+  margin-left: 2px;
+}
+.foot-item.fi-fail {
+  border-left: 3px solid var(--f-bad);
+}
+.foot-item.fi-open {
+  border-left: 3px dashed var(--f-open);
+}
+.tag.info {
+  background: var(--bg);
+  color: var(--muted);
+  white-space: normal;
+}
+.legend {
+  margin-top: 10px;
+}
+.footing-detail {
+  border-top: 1px solid var(--line);
+  margin-top: 10px;
+  padding-top: 4px;
+}
+.fstatus {
+  margin: 4px 0 8px;
+}
+.ftable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.ftable td {
+  padding: 2px 4px;
+  border-bottom: 1px solid var(--bg);
+}
+.ftable tr:not(.sum):not(.ok):not(.bad) {
+  cursor: pointer;
+}
+.ftable .num-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+.ftable tr.sum td {
+  border-top: 1px solid var(--ink);
+  font-weight: 600;
+}
+.ftable tr.ok td {
+  color: var(--f-ok);
+  font-weight: 600;
+}
+.ftable tr.bad td {
+  color: var(--f-bad);
+  font-weight: 700;
 }

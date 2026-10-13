@@ -23,11 +23,11 @@ Masukan pemilik dari uji Fase 0:
 Konteks dokumen: draft LK diexport dari Word, **dinyatakan dalam ribuan Rupiah**, total ditandai
 **garis di atas angka**. Draft awal sering punya selisih pembulatan — itu harus TERLIHAT, bukan ditoleransi.
 
-### 1.1 Viewer: scroll terus
-- [ ] Semua halaman ditampilkan berurutan ke bawah; nomor halaman di toolbar ikut berubah saat scroll.
-- [ ] Hanya halaman yang terlihat (± 1 halaman) yang dirender ke canvas, agar PDF 80+ halaman tetap ringan.
-- [ ] "Loncat ke halaman" (dari hasil tie, register Excel) = scroll ke posisi angka.
-- [ ] Panel **Diagnostik ekstraksi** TETAP ada selama pengembangan (disembunyikan nanti).
+### 1.1 Viewer: scroll terus — kode selesai 13 Okt 2026, **menunggu uji pemilik di Excel**
+- [x] Semua halaman ditampilkan berurutan ke bawah; nomor halaman di toolbar ikut berubah saat scroll.
+- [x] Hanya halaman yang terlihat (± 1 halaman) yang dirender ke canvas, agar PDF 80+ halaman tetap ringan.
+- [x] "Loncat ke halaman" (dari hasil tie, register Excel) = scroll ke posisi angka.
+- [x] Panel **Diagnostik ekstraksi** TETAP ada selama pengembangan (disembunyikan nanti). Kini ada kolom **Garis**.
 
 ### 1.2 Jendela besar: satu dokumen, panel kecil jadi remote
 - [ ] Klik "Jendela besar" → PDF yang sedang terbuka (+ halaman aktif + hasil footing/tie) **dipindahkan** ke
@@ -43,27 +43,35 @@ Konteks dokumen: draft LK diexport dari Word, **dinyatakan dalam ribuan Rupiah**
 ### 1.3 Auto footing & cross footing (satu tombol untuk seluruh dokumen)
 Aturan keras: **toleransi 0.** Tidak ada status "hampir cocok". Selisih 1 = gagal.
 
-- [ ] Bangun struktur tabel dari posisi token: **kolom** = angka dengan tepi kanan rata vertikal;
-      **baris** = baseline sejajar.
-- [ ] Baca **garis horizontal** dari PDF (pdf.js `getOperatorList`: path/rectangle tipis) dan kaitkan ke angka
+Status 13 Okt 2026: **footing vertikal** selesai di kode (menunggu uji pemilik di Excel); cross footing berikutnya.
+
+- [x] Bangun struktur tabel dari posisi token: **kolom** = angka dengan tepi kanan rata vertikal.
+      Kolom dipecah menjadi tabel baru bila ada teks/tahun melintang di atas kolom (judul kolom, paragraf).
+      (**Baris** sejajar baseline baru dibutuhkan untuk cross footing.)
+- [x] Baca **garis horizontal** dari PDF (pdf.js `getOperatorList`: path/rectangle tipis) dan kaitkan ke angka
       di bawahnya → kandidat total kuat. Label "Jumlah/Total/Neto/JUMLAH" = konfirmasi tambahan.
-- [ ] Footing vertikal: total = jumlah angka langsung di atasnya sejak total/garis sebelumnya; mendukung
-      bertingkat (Jumlah aset lancar + Jumlah aset tidak lancar = JUMLAH ASET). Kurung = negatif.
+      Garis ganda di bawah jumlah akhir, garis bawah judul kolom, dan border grid tabel tidak dianggap penanda total.
+- [x] Footing vertikal: total = jumlah angka langsung di atasnya sejak total/garis sebelumnya; mendukung
+      bertingkat (Jumlah aset lancar + Jumlah aset tidak lancar = JUMLAH ASET) dan subtotal berjalan
+      (laba bruto + beban = laba sebelum pajak). Kurung = negatif. Semua angka biasa sejak total sebelumnya wajib ikut.
 - [ ] Cross footing horizontal untuk tabel bertotal kolom: **mutasi ekuitas**, **mutasi aset tetap / aset hak
       guna**, tabel segmen (saldo awal + penambahan − pengurangan = saldo akhir). Tabel mutasi dicek dua arah.
-- [ ] Status per angka (warna + simbol + tooltip, tidak hanya warna):
+- [x] Status per angka (warna + simbol + tooltip, tidak hanya warna):
       | Tanda | Arti |
       |---|---|
       | ✓ hijau | komponen yang masuk ke footing yang cocok |
       | **F** hijau | total dengan selisih **tepat 0** |
       | **✗** merah | total (ada garis/label) yang selisihnya ≠ 0 — **tampilkan besar selisih**, mis. "selisih 1" |
       | ○ abu-abu | angka yang belum tercakup footing mana pun → dicek manual |
-- [ ] Nomor catatan, tahun, persentase tidak ikut footing.
-- [ ] Koreksi manual: klik angka → "ini total" / "keluarkan dari tabel"; tarik kotak → paksa jadi satu tabel.
-      Koreksi langsung menghitung ulang.
-- [ ] Uji dengan PDF sintetis baru (`scripts/make_sample_pdf.py`): laporan posisi keuangan bertingkat,
-      **mutasi ekuitas**, **mutasi aset tetap**, dalam ribuan, bergaris total, dengan beberapa **selisih 1 yang
-      disengaja** (harus ✗) dan tabel terpotong ke halaman berikutnya (harus ○, bukan salah F).
+      F tidak diberikan (jadi ○ + alasan) bila ada angka ambigu, skala belum ditetapkan, atau tabel tampak
+      lanjutan dari halaman sebelumnya.
+- [x] Nomor catatan, tahun, persentase tidak ikut footing (juga nomor halaman dan angka di dalam kalimat).
+- [ ] Koreksi manual: klik angka → "ini total" / "keluarkan dari tabel" ✅ (+ "bukan total"); tarik kotak → paksa
+      jadi satu tabel ⏳ (dikerjakan bersama 1.4 karena memakai mekanisme tarik kotak yang sama).
+      Koreksi langsung menghitung ulang ✅.
+- [x] Uji dengan PDF sintetis baru (`scripts/make_sample_pdf.py --footing` → `samples/contoh-footing.pdf`):
+      laporan posisi keuangan bertingkat, **mutasi ekuitas**, **mutasi aset tetap**, dalam ribuan, bergaris total,
+      dengan 5 **selisih 1 yang disengaja** (semua ✗) dan tabel terpotong ke halaman berikutnya (○, bukan salah F).
 
 ### 1.4 Sum snip (tarik kotak)
 - [ ] Di viewer (terutama jendela besar): tarik kotak di atas angka vertikal ATAU horizontal → tampil jumlah
