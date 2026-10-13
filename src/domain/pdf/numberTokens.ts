@@ -38,6 +38,11 @@ export interface NumberToken {
   label: string;
   /** Perkiraan jenis angka; referensi catatan & tahun ditampilkan lebih samar. */
   hint: TokenHint;
+  /**
+   * true bila angka berada di dalam kalimat (ada huruf sesudahnya, atau diakhiri tanda baca kalimat).
+   * Angka seperti ini tidak dipakai untuk membangun kolom tabel.
+   */
+  prose: boolean;
 }
 
 interface WordSpan {
@@ -117,6 +122,7 @@ export function extractNumberTokens(
       const x1 = e + (item.width * w.end) / len;
       const box: PdfBox = { x0, y0: f - h * 0.25, x1, y1: f + h * 0.85 };
 
+      const after = item.str.slice(w.end);
       tokens.push({
         id: `p${page}-i${itemIndex}-c${w.start}`,
         page,
@@ -125,6 +131,7 @@ export function extractNumberTokens(
         box,
         label: findRowLabel(textItems, f, h, x0),
         hint: classify(w.text, parsed),
+        prose: !isSingleCell && (hasLetters(after) || /^[.,;:]/.test(after)),
       });
     }
   });

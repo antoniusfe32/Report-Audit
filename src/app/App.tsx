@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useReviewer } from "./useReviewer";
-import { PdfPageView } from "../features/viewer/PdfPageView";
+import { PdfScrollView } from "../features/viewer/PdfScrollView";
 import { SelectionPanel } from "../features/panel/SelectionPanel";
+import { FootingPanel } from "../features/footing/FootingPanel";
+import { FootingDetail } from "../features/footing/FootingDetail";
 import {
   openLargeWindow,
   readyOffice,
@@ -66,8 +68,21 @@ export function App() {
     }
   };
 
-  const pageTokens = r.tokens.filter((t) => t.page === r.page);
   const pageCount = r.pdf?.pageCount ?? 0;
+
+  // Sorot susunan footing dari angka terpilih: komponen dari total, atau total + komponen saudaranya.
+  const highlight = useMemo(() => {
+    const ids = new Set<string>();
+    const st = r.selected && r.footing?.byToken.get(r.selected.id);
+    if (!st || !r.footing) return ids;
+    const fid = st.footingId ?? st.componentOf;
+    const f = r.footing.footings.find((x) => x.id === fid);
+    if (f) {
+      ids.add(f.totalId);
+      f.componentIds.forEach((id) => ids.add(id));
+    }
+    return ids;
+  }, [r.selected, r.footing]);
 
   return (
     <div className={`app ${isDialog ? "is-dialog" : "is-pane"}`}>
@@ -154,7 +169,7 @@ export function App() {
 
           {r.pdf && (
             <nav className="toolbar" aria-label="Navigasi halaman">
-              <button type="button" disabled={r.page <= 1} onClick={() => r.setPage(r.page - 1)} aria-label="Halaman sebelumnya">
+              <button type="button" disabled={r.page <= 1} onClick={() => r.goToPage(r.page - 1)} aria-label="Halaman sebelumnya">
                 ‹
               </button>
               <span className="pageno">
@@ -166,12 +181,12 @@ export function App() {
                   value={r.page}
                   onChange={(e) => {
                     const n = Number(e.target.value);
-                    if (n >= 1 && n <= pageCount) r.setPage(n);
+                    if (n >= 1 && n <= pageCount) r.goToPage(n);
                   }}
                 />{" "}
                 / {pageCount}
               </span>
-              <button type="button" disabled={r.page >= pageCount} onClick={() => r.setPage(r.page + 1)} aria-label="Halaman berikutnya">
+              <button type="button" disabled={r.page >= pageCount} onClick={() => r.goToPage(r.page + 1)} aria-label="Halaman berikutnya">
                 ›
               </button>
               <span className="spacer" />
@@ -189,15 +204,19 @@ export function App() {
           )}
 
           {r.pdf ? (
-            <PdfPageView
+            <PdfScrollView
               doc={r.pdf.doc}
-              page={r.page}
+              viewports={r.viewports}
               zoom={zoom}
-              tokens={pageTokens}
+              tokens={r.tokens}
               selectedId={r.selected?.id ?? null}
               occurrences={r.occurrences}
               focusId={r.focusId}
+              nav={r.nav}
+              marks={r.footing?.byToken ?? null}
+              highlight={highlight}
               onSelect={handleSelect}
+              onPageChange={r.setPage}
             />
           ) : (
             !r.loading && (
@@ -243,8 +262,44 @@ export function App() {
                 <span className="muted small">Mode pratinjau browser — fitur Excel tidak aktif.</span>
               ) : null
             }
+            extra={
+              r.selected && r.footing ? (
+                <FootingDetail
+                  token={r.selected}
+                  footing={r.footing}
+                  tokens={r.tokens}
+                  override={r.overrides[r.selected.id]}
+                  locale={r.locale}
+                  onOverride={(ov) => r.setOverride(r.selected!.id, ov)}
+                  onGoTo={(t) => {
+                    r.select(t);
+                    r.goTo(t);
+                  }}
+                />
+              ) : null
+            }
           />
-          {r.pdf && <PageStats stats={r.stats} current={r.page} onPick={r.setPage} />}
+          {r.pdf && (
+            <FootingPanel
+              footing={r.footing}
+              footingOn={r.footingOn}
+              busy={!!r.loading}
+              tokens={r.tokens}
+              scaleSummary={r.scaleSummary}
+              scaleChoice={r.scaleChoice}
+              documentScale={r.documentScale}
+              overrideCount={Object.keys(r.overrides).length}
+              onRun={r.runFooting}
+              onHide={() => r.setFootingOn(false)}
+              onScaleChoice={r.setScaleChoice}
+              onClearOverrides={r.clearOverrides}
+              onPick={(t) => {
+                r.select(t);
+                r.goTo(t);
+              }}
+            />
+          )}
+          {r.pdf && <PageStats stats={r.stats} current={r.page} onPick={r.goToPage} />}
         </aside>
       </div>
     </div>
@@ -293,7 +348,7 @@ function PageStats({
   current,
   onPick,
 }: {
-  stats: { page: number; textItems: number; numberTokens: number }[];
+  stats: { page: number; textItems: number; numberTokens: number; rules: number | null }[];
   current: number;
   onPick: (p: number) => void;
 }) {
@@ -306,6 +361,7 @@ function PageStats({
             <th>Hal.</th>
             <th>Potongan teks</th>
             <th>Angka</th>
+            <th title="Garis horizontal (dibaca saat footing dijalankan)">Garis</th>
           </tr>
         </thead>
         <tbody>
@@ -314,6 +370,7 @@ function PageStats({
               <td>{s.page}</td>
               <td>{s.textItems}</td>
               <td>{s.numberTokens}</td>
+              <td>{s.rules ?? "–"}</td>
             </tr>
           ))}
         </tbody>

@@ -13,6 +13,8 @@ interface Props {
   locale: NumberLocale;
   onGoTo: (t: NumberToken) => void;
   actions?: ReactNode;
+  /** Bagian tambahan di bawah detail angka (mis. detail footing). */
+  extra?: ReactNode;
 }
 
 const HINT_LABEL: Record<NumberToken["hint"], string> = {
@@ -21,7 +23,7 @@ const HINT_LABEL: Record<NumberToken["hint"], string> = {
   "likely-year": "Kemungkinan tahun",
 };
 
-export function SelectionPanel({ token, occurrences, locale, onGoTo, actions }: Props) {
+export function SelectionPanel({ token, occurrences, locale, onGoTo, actions, extra }: Props) {
   if (!token) {
     return (
       <section className="panel muted">
@@ -74,6 +76,8 @@ export function SelectionPanel({ token, occurrences, locale, onGoTo, actions }: 
       )}
 
       {actions && <div className="actions">{actions}</div>}
+
+      {extra}
 
       <h2>
         Lokasi lain dengan nilai sama <span className="count">{occurrences.length}</span>
