@@ -16,7 +16,7 @@ import type { HRule } from "../domain/pdf/rules";
 import { findOccurrences } from "../domain/matching/findOccurrences";
 import { computeVerticalFooting, type Override, type Overrides } from "../domain/footing/verticalFooting";
 import { detectScale, effectiveScales, pageText, summarizeScales, type Scale } from "../domain/footing/scale";
-import { getPageInfo, getPageRules, loadPdf, PdfLoadError, type LoadedPdf } from "../services/pdf/pdfService";
+import { getPageInfo, getPageLayout, loadPdf, PdfLoadError, type LoadedPdf } from "../services/pdf/pdfService";
 import type { SessionState } from "./session";
 
 export interface AppError {
@@ -48,6 +48,7 @@ export function useReviewer() {
 
   // Footing
   const [rules, setRules] = useState<HRule[][] | null>(null);
+  const [boldFonts, setBoldFonts] = useState<Set<string>>(new Set());
   const [footingOn, setFootingOn] = useState(false);
   const [overrides, setOverrides] = useState<Overrides>({});
   const [scaleChoice, setScaleChoice] = useState<ScaleChoice>("auto");
@@ -147,12 +148,17 @@ export function useReviewer() {
     const seq = loadSeq.current;
     (async () => {
       const out: HRule[][] = [];
+      const bold = new Set<string>();
       try {
         for (let p = 1; p <= pdf.pageCount; p++) {
           setLoading(`Membaca garis tabel halaman ${p} dari ${pdf.pageCount}…`);
-          out.push(await getPageRules(pdf.doc, p));
+          const fonts = (rawPages[p - 1] ?? []).flatMap((it) => (it.fontName ? [it.fontName] : []));
+          const layout = await getPageLayout(pdf.doc, p, fonts);
+          out.push(layout.rules);
+          layout.boldFonts.forEach((f) => bold.add(f));
           if (seq !== loadSeq.current) return;
         }
+        setBoldFonts(bold);
         setRules(out);
       } catch (err) {
         setFootingOn(false);
@@ -162,7 +168,7 @@ export function useReviewer() {
         setLoading(null);
       }
     })();
-  }, [footingOn, pdf, rules]);
+  }, [footingOn, pdf, rules, rawPages]);
 
   const runFooting = useCallback(async () => {
     if (pdf) setFootingOn(true);
@@ -171,9 +177,9 @@ export function useReviewer() {
   const footing = useMemo(
     () =>
       footingOn && rules
-        ? computeVerticalFooting({ tokens, textItems: rawPages, rules, scales: pageScales, overrides })
+        ? computeVerticalFooting({ tokens, textItems: rawPages, rules, scales: pageScales, overrides, boldFonts })
         : null,
-    [footingOn, rules, tokens, rawPages, pageScales, overrides],
+    [footingOn, rules, tokens, rawPages, pageScales, overrides, boldFonts],
   );
 
   const setOverride = useCallback((tokenId: string, ov: Override | null) => {
@@ -199,6 +205,17 @@ export function useReviewer() {
     setNav((n) => ({ page: p, seq: n.seq + 1 }));
   }, []);
 
+  /**
+   * Terapkan progres dari jendela lain untuk PDF yang sama (halaman tidak diubah: tiap jendela
+   * punya posisi gulir sendiri). Hanya bagian yang berbeda yang diubah.
+   */
+  const applySession = useCallback((st: SessionState) => {
+    setLocale((v) => (v === st.locale ? v : st.locale));
+    setScaleChoice((v) => (v === st.scaleChoice ? v : st.scaleChoice));
+    setFootingOn((v) => (v === st.footingOn ? v : st.footingOn));
+    setOverrides((v) => (JSON.stringify(v) === JSON.stringify(st.overrides) ? v : { ...st.overrides }));
+  }, []);
+
   /** Progres review saat ini (dipindahkan bersama PDF ke/dari jendela besar). */
   const session: SessionState = useMemo(
     () => ({ locale, overrides, scaleChoice, footingOn, page }),
@@ -207,6 +224,9 @@ export function useReviewer() {
 
   return {
     session,
+    applySession,
+    rules,
+    boldFonts,
     pdf,
     tokens,
     viewports,

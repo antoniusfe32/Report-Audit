@@ -6,6 +6,7 @@ Jalankan:
   python scripts/make_sample_pdf.py samples/contoh-laporan-keuangan.pdf            (tie-out, Fase 0)
   python scripts/make_sample_pdf.py --footing samples/contoh-footing.pdf           (footing, Fase 1)
   python scripts/make_sample_pdf.py --terpecah samples/contoh-angka-terpecah.pdf   (angka terpecah)
+  python scripts/make_sample_pdf.py --laba-rugi samples/contoh-laba-rugi-tebal.pdf (subtotal tebal, label 2 baris)
 """
 import sys
 from reportlab.lib.pagesizes import A4
@@ -557,10 +558,115 @@ def split_sample(path):
     print("angka terpecah:", path, "jumlah", fmt(tot[0]), fmt(tot[1]))
 
 
+# =====================================================================
+# PDF sintetis: laporan laba rugi bergaya draft Word, meniru STRUKTUR (bukan isi) draft pemilik:
+# subtotal dicetak TEBAL (label + angka), label terbungkus 2-4 baris, nomor catatan "17,22h",
+# kolom "Catatan/Notes". Semua angka fiktif.
+#   hal. 1: subtotal bergaris (garis = kotak tipis yang di-stroke) + border PUTIH tak terlihat di setiap baris
+#           (gaya tabel Word) -> semua total harus F.
+#   hal. 2: tanpa garis sama sekali (hanya tebal) -> total tetap terbaca; 1 selisih disengaja:
+#           "LABA TAHUN BERJALAN" 2024 selisih +1 -> harus ✗.
+# =====================================================================
+
+def laba_rugi_page(d, with_lines, err_np_py=0):
+    c = d.c
+    H_, B_, I_ = "Helvetica", "Helvetica-Bold", "Helvetica-BoldOblique"
+    XN, XC, XP = 330, 450, 535      # kolom catatan (tengah), 2025, 2024 (rata kanan)
+    LH = 11                          # jarak baris dalam satu sel
+    RG = 6                           # jarak tambahan antar-baris tabel
+    d.c.setFont(B_, 8)
+    c.drawCentredString(XN, d.y + 9, "Catatan/")
+    c.setFont(I_, 8)
+    c.drawCentredString(XN, d.y, "Notes")
+    c.setFont(B_, 9)
+    c.drawRightString(XC, d.y, "2025")
+    c.drawRightString(XP, d.y, "2024")
+    c.line(X_LABEL, d.y - 4, XP, d.y - 4)
+    d.y -= 20
+
+    rev, cogs = (1_248_550_300, 1_102_440_150), (-905_230_410, -812_330_220)
+    gross = [rev[i] + cogs[i] for i in (0, 1)]
+    opex = [(["Beban umum dan", "administrasi"], (-95_402_330, -88_115_200), "19"),
+            (["Pendapatan keuangan"], (4_215_400, 3_880_500), "20"),
+            (["Beban keuangan"], (-18_902_110, -21_550_330), "21"),
+            (["Lain-lain - neto"], (1_120_000, 0), None)]
+    pbt_final = [gross[i] + sum(v[i] for _, v, _ in opex) for i in (0, 1)]
+    final_tax = (-6_242_750, -5_512_200)
+    pbt = [pbt_final[i] + final_tax[i] for i in (0, 1)]
+    tax = (-44_650_300, -32_400_150)
+    np_ = [pbt[i] + tax[i] for i in (0, 1)]
+    np_shown = [np_[0], np_[1] + err_np_py]
+    remeas, dtax = (-1_370_200, 915_400), (301_444, -201_388)
+    oci = [remeas[i] + dtax[i] for i in (0, 1)]
+    tci = [np_shown[i] + oci[i] for i in (0, 1)]
+
+    def row(lines, vals=None, note=None, bold=False, indent=0, rule=False, double=False):
+        """Baris tabel: label bisa beberapa baris; angka & catatan di baris TERAKHIR (rata bawah)."""
+        font = B_ if bold else H_
+        top = d.y
+        for i, text in enumerate(lines):
+            c.setFont(font, 9)
+            # baris lanjutan diindentasi sedikit, seperti Word
+            c.drawString(X_LABEL + indent + (6 if i and not bold else 0), d.y, text)
+            if i < len(lines) - 1:
+                d.y -= LH
+        if note:
+            c.setFont(H_, 9)
+            c.drawCentredString(XN, d.y, note)
+        if vals:
+            for v, x in zip(vals, (XC, XP)):
+                if rule and with_lines:
+                    # garis = kotak setinggi 0,75 yang di-stroke (dua tepi berdekatan)
+                    c.rect(x - 75, d.y + 10, 75, 0.75, stroke=1, fill=0)
+                if double and with_lines:
+                    c.line(x - 75, d.y - 3, x, d.y - 3)
+                    c.line(x - 75, d.y - 5, x, d.y - 5)
+                c.setFont(font, 9)
+                c.drawRightString(x, d.y, fmt(v))
+        if with_lines:
+            # border putih di bawah setiap baris tabel (tidak terlihat, tetapi ada di PDF)
+            c.saveState()
+            c.setStrokeColorRGB(1, 1, 1)
+            c.line(X_LABEL, d.y - 4, XP, d.y - 4)
+            c.restoreState()
+        d.y -= LH + RG
+
+    row(["PENDAPATAN"], rev, "17,22h", bold=True)
+    row(["BEBAN POKOK PENDAPATAN"], cogs, "18,22i", bold=True)
+    row(["LABA BRUTO"], gross, bold=True, rule=True)
+    for lines, v, n in opex:
+        row(lines, v, n)
+    row(["LABA SEBELUM PAJAK FINAL DAN", "PAJAK PENGHASILAN BADAN"], pbt_final, bold=True, rule=True)
+    row(["Beban pajak final"], final_tax, "12c")
+    row(["LABA SEBELUM PAJAK", "PENGHASILAN BADAN"], pbt, bold=True, rule=True)
+    row(["Beban pajak penghasilan"], tax, "12d")
+    row(["LABA TAHUN BERJALAN"], np_shown, bold=True, rule=True)
+    row(["PENGHASILAN", "KOMPREHENSIF LAIN"], bold=True)
+    row(["Pos yang tidak akan", "direklasifikasi ke laba rugi"], bold=True, indent=6)
+    row(["Pengukuran kembali program", "imbalan pasti"], remeas, "14", indent=12)
+    row(["Pajak tangguhan terkait"], dtax, "12e", indent=12)
+    row(["PENGHASILAN", "KOMPREHENSIF LAIN", "TAHUN BERJALAN SETELAH", "PAJAK"], oci, bold=True, rule=True)
+    row(["TOTAL PENGHASILAN", "KOMPREHENSIF TAHUN BERJALAN"], tci, bold=True, rule=True, double=True)
+
+
+def laba_rugi_sample(path):
+    d = Doc(path, invariant=1)
+    d.new_page("LAPORAN LABA RUGI DAN PENGHASILAN KOMPREHENSIF LAIN",
+               subtitle="Untuk tahun yang berakhir 31 Desember 2025 dan 2024")
+    laba_rugi_page(d, with_lines=True)
+    d.new_page("LAPORAN LABA RUGI (versi tanpa garis)",
+               subtitle="Untuk tahun yang berakhir 31 Desember 2025 dan 2024")
+    laba_rugi_page(d, with_lines=False, err_np_py=1)
+    d.save()
+    print("laba rugi tebal:", path)
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if args and args[0] == "--footing":
         footing_sample(args[1] if len(args) > 1 else "contoh-footing.pdf")
+    elif args and args[0] == "--laba-rugi":
+        laba_rugi_sample(args[1] if len(args) > 1 else "contoh-laba-rugi-tebal.pdf")
     elif args and args[0] == "--terpecah":
         split_sample(args[1] if len(args) > 1 else "contoh-angka-terpecah.pdf")
     else:

@@ -31,6 +31,17 @@ Konteks dokumen: draft LK diexport dari Word, **dinyatakan dalam ribuan Rupiah**
       ("tanda berlawanan"), tidak lagi diperlakukan sebagai peringatan merah. Desimal tetap dibedakan.
 - [ ] Sum snip (1.4) belum ada — urutan berikutnya menunggu keputusan pemilik.
 
+### Masukan uji draft asli #2 (laba rugi bergaya Word, 13 Okt 2026)
+Gejala: subtotal tebal (LABA BRUTO, LABA SEBELUM PAJAK, …) tidak dikenali; semua angka dijumlahkan ke bawah.
+Direproduksi dengan PDF tiruan (struktur sama, angka fiktif): `samples/contoh-laba-rugi-tebal.pdf`.
+- [x] Penyebab: border tabel **putih** (tak terlihat) di setiap baris terbaca sebagai garis → kini diabaikan.
+- [x] Border tipis yang tergambar sebagai kotak (dua tepi berdekatan) tidak lagi terbaca sebagai garis ganda.
+- [x] **Angka tebal** = tanda total (seperti garis). Baris tebal tanpa komponen yang masuk akal (mis. PENDAPATAN,
+      BEBAN POKOK PENDAPATAN di awal laporan) otomatis diperlakukan sebagai komponen.
+- [x] Label yang terbungkus 2–4 baris digabung ("LABA SEBELUM PAJAK FINAL DAN PAJAK PENGHASILAN BADAN").
+- [x] Tombol **Diagnostik hal. N (angka disamarkan)** di panel Diagnostik: struktur halaman tanpa angka asli,
+      untuk dikirim ke pengembang sebagai ganti PDF asli.
+
 ### Keputusan pemilik (13 Okt 2026, setelah uji draft asli)
 - [x] Tampilan footing memakai **blok warna utuh**: biru muda = angka yang dijumlahkan (satu blok per rangkaian),
       hijau = total cocok, merah = total selisih, abu-abu = total perlu cek manual. Simbol F / ✗ / ○ tetap ada.
@@ -40,6 +51,10 @@ Konteks dokumen: draft LK diexport dari Word, **dinyatakan dalam ribuan Rupiah**
 - [ ] Jendela besar: Office tidak mengizinkan add-in me-minimize dialog. Lihat 1.2.
 - [x] Jendela besar ditutup lalu dibuka lagi **tidak perlu memilih PDF lagi**: PDF + progres (koreksi manual, skala,
       footing aktif, halaman) disimpan di memori panel samping dan dikirim kembali (lihat 1.2).
+- [x] PDF yang dibuka di jendela besar **otomatis juga terbuka di panel samping** (dan sebaliknya). Progres
+      (koreksi manual, skala, format angka, footing aktif) disinkronkan dua arah, sehingga pengguna bisa
+      berpindah kerja antara jendela besar dan panel samping. Halaman tidak disinkronkan (posisi gulir masing-masing).
+      Register Excel ditulis oleh panel samping saja bila PDF yang sama terbuka di sana.
 
 ### 1.1 Viewer: scroll terus — kode selesai 13 Okt 2026, **menunggu uji pemilik di Excel**
 - [x] Semua halaman ditampilkan berurutan ke bawah; nomor halaman di toolbar ikut berubah saat scroll.

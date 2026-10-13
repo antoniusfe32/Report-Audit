@@ -134,3 +134,26 @@ describe("angka terpecah", () => {
     expect(tokens.map((t) => t.parsed.value)).toEqual([1000, 2000]);
   });
 });
+
+describe("label beberapa baris", () => {
+  it("baris atas yang bersambung digabung (huruf kecil / kata penyambung)", () => {
+    const items = [item("Beban umum dan", 50, 712), item("administrasi", 56, 700), item("95.402", 350, 700)];
+    expect(extractNumberTokens(items, 1, "id")[0].label).toBe("Beban umum dan administrasi");
+  });
+
+  it("judul bagian di atas baris pertama TIDAK ikut menjadi label", () => {
+    const items = [item("Aset lancar", 50, 712), item("Kas dan setara kas", 58, 700), item("125.750", 350, 700)];
+    expect(extractNumberTokens(items, 1, "id")[0].label).toBe("Kas dan setara kas");
+  });
+
+  it("baris atas yang berisi nominal adalah baris lain", () => {
+    const items = [
+      item("Pendapatan keuangan dan", 50, 712),
+      item("4.215", 350, 712),
+      item("beban keuangan", 50, 700),
+      item("18.902", 350, 700),
+    ];
+    const t = extractNumberTokens(items, 1, "id").find((x) => x.text === "18.902")!;
+    expect(t.label).toBe("beban keuangan");
+  });
+});

@@ -97,6 +97,12 @@ PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di 
 - [ ] **Tutup lalu buka lagi jendela besar** (panel samping tetap terbuka): PDF, hasil footing, koreksi manual, dan
       halaman terakhir harus kembali tanpa memilih file. Panel samping menampilkan "Sesi tersimpan di panel ini".
 - [ ] Buka PDF di panel samping → klik **Jendela besar ⧉** → PDF yang sama langsung terbuka di jendela besar.
+- [ ] Buka PDF di **jendela besar** → panel samping otomatis membuka PDF yang sama.
+- [ ] Jalankan footing / koreksi manual di salah satu jendela → jendela lain ikut berubah dalam ±1 detik.
+- [ ] Buka `samples/contoh-laba-rugi-tebal.pdf` → **Jalankan footing**: hal. 1 semua subtotal F; hal. 2 hanya
+      "LABA TAHUN BERJALAN" 2024 yang ✗ (selisih 1).
+- [ ] Draft asli bagian laba rugi: apakah subtotal tebal sekarang terbaca? Bila masih salah: panel **Diagnostik** →
+      **Diagnostik hal. N (angka disamarkan)** → periksa → salin → kirim teksnya (bukan PDF-nya).
 - [ ] Kalau sheet tidak muncul: baca kotak **Register Excel** di panel footing (kuning = tidak terhubung ke Excel,
       merah = pesan error) dan laporkan isinya.
 
@@ -128,6 +134,7 @@ npm run build     # hasil ke folder docs/ (yang dilayani GitHub Pages)
 python scripts/make_sample_pdf.py samples/contoh-laporan-keuangan.pdf
 python scripts/make_sample_pdf.py --footing samples/contoh-footing.pdf
 python scripts/make_sample_pdf.py --terpecah samples/contoh-angka-terpecah.pdf
+python scripts/make_sample_pdf.py --laba-rugi samples/contoh-laba-rugi-tebal.pdf
 ```
 
 Aturan kerja untuk Claude Code ada di `CLAUDE.md`. Rencana fase ada di `ROADMAP.md`.
