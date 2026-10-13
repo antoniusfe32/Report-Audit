@@ -44,6 +44,7 @@ export interface OpCodes {
   closeFillStroke: number;
   closeEOFillStroke: number;
   setFillRGBColor: number;
+  setStrokeRGBColor: number;
 }
 
 /** Kode perintah di dalam data path pdf.js (DrawOPS). */
@@ -81,6 +82,7 @@ interface GState {
   ctm: Matrix;
   lineWidth: number;
   fillWhite: boolean;
+  strokeWhite: boolean;
 }
 
 /** pdf.js mengubah semua warna isian menjadi `setFillRGBColor` dengan argumen ["#rrggbb"]. */
@@ -128,7 +130,7 @@ function subpaths(data: ArrayLike<number>): ({ pts: [number, number][]; curved: 
 export function extractHorizontalRules(ops: OperatorListLike, OPS: OpCodes): HRule[] {
   const rules: HRule[] = [];
   const stack: GState[] = [];
-  let gs: GState = { ctm: IDENTITY, lineWidth: 1, fillWhite: false };
+  let gs: GState = { ctm: IDENTITY, lineWidth: 1, fillWhite: false, strokeWhite: false };
 
   const strokeOps = new Set([OPS.stroke, OPS.closeStroke]);
   const fillOps = new Set([OPS.fill, OPS.eoFill, OPS.fillStroke, OPS.eoFillStroke, OPS.closeFillStroke, OPS.closeEOFillStroke]);
@@ -159,6 +161,9 @@ export function extractHorizontalRules(ops: OperatorListLike, OPS: OpCodes): HRu
     } else if (fn === OPS.setFillRGBColor) {
       // Kotak putih (mis. latar sel) tidak terlihat sebagai garis.
       gs = { ...gs, fillWhite: isNearWhite(args) };
+    } else if (fn === OPS.setStrokeRGBColor) {
+      // Border putih (Word sering menggambarnya di setiap baris tabel) tidak terlihat → bukan garis.
+      gs = { ...gs, strokeWhite: isNearWhite(args) };
     } else if (fn === OPS.constructPath && args) {
       const paintOp = args[0] as number;
       const isStroke = strokeOps.has(paintOp);
@@ -170,7 +175,7 @@ export function extractHorizontalRules(ops: OperatorListLike, OPS: OpCodes): HRu
       for (const sp of subpaths(data as ArrayLike<number>)) {
         if (sp.curved || sp.pts.length < 2) continue;
         const pts = sp.pts.map(([x, y]) => apply(gs.ctm, x, y));
-        if (isStroke) {
+        if (isStroke && !gs.strokeWhite) {
           const thickness = gs.lineWidth * scaleY(gs.ctm);
           if (thickness > MAX_THICKNESS) continue;
           for (let i = 1; i < pts.length; i++) {
@@ -200,15 +205,26 @@ export function extractHorizontalRules(ops: OperatorListLike, OPS: OpCodes): HRu
   return dedupe(rules);
 }
 
-/** Garis yang digambar dua kali (stroke + fill, atau border sel bertumpuk) cukup dihitung sekali. */
+/**
+ * Garis yang digambar dua kali (stroke + fill, border sel bertumpuk) atau satu border tipis yang tergambar
+ * sebagai dua tepi kotak (selisih ≤ 1,2 satuan) dihitung SATU garis, agar tidak terbaca sebagai garis ganda.
+ */
 function dedupe(rules: HRule[]): HRule[] {
   const sorted = [...rules].sort((a, b) => b.y - a.y || a.x0 - b.x0);
   const out: HRule[] = [];
   for (const r of sorted) {
-    const dup = out.find(
-      (o) => Math.abs(o.y - r.y) < 0.6 && Math.abs(o.x0 - r.x0) < 0.6 && Math.abs(o.x1 - r.x1) < 0.6,
-    );
-    if (!dup) out.push(r);
+    const dup = out.find((o) => {
+      if (Math.abs(o.y - r.y) > 1.2) return false;
+      const overlap = Math.min(o.x1, r.x1) - Math.max(o.x0, r.x0);
+      return overlap >= 0.8 * Math.min(o.x1 - o.x0, r.x1 - r.x0);
+    });
+    if (!dup) {
+      out.push({ ...r });
+    } else {
+      dup.x0 = Math.min(dup.x0, r.x0);
+      dup.x1 = Math.max(dup.x1, r.x1);
+      dup.thickness = Math.max(dup.thickness, Math.abs(dup.y - r.y) + r.thickness);
+    }
   }
   return out;
 }

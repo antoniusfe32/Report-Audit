@@ -19,6 +19,7 @@ const OPS: OpCodes = {
   closeFillStroke: 26,
   closeEOFillStroke: 27,
   setFillRGBColor: 59,
+  setStrokeRGBColor: 58,
 };
 const M = 0; // moveTo
 const L = 1; // lineTo
@@ -107,5 +108,31 @@ describe("extractHorizontalRules", () => {
       OPS,
     );
     expect(rules).toHaveLength(1);
+  });
+
+  it("border putih (stroke) tidak dianggap garis", () => {
+    const rules = extractHorizontalRules(
+      opList(
+        [OPS.setStrokeRGBColor, ["#ffffff"]],
+        path(OPS.stroke, [M, 380, 600, L, 450, 600]),
+        [OPS.setStrokeRGBColor, ["#000000"]],
+        path(OPS.stroke, [M, 380, 500, L, 450, 500]),
+      ),
+      OPS,
+    );
+    expect(rules.map((r) => r.y)).toEqual([500]);
+  });
+
+  it("border tipis yang digambar sebagai kotak (dua tepi berdekatan) = satu garis, bukan garis ganda", () => {
+    const rules = extractHorizontalRules(opList(path(OPS.stroke, rect(380, 600, 70, 0.75))), OPS);
+    expect(rules).toHaveLength(1);
+  });
+
+  it("garis ganda sungguhan (berjarak 2 satuan) tetap dua garis", () => {
+    const rules = extractHorizontalRules(
+      opList(path(OPS.stroke, [M, 380, 600, L, 450, 600]), path(OPS.stroke, [M, 380, 598, L, 450, 598])),
+      OPS,
+    );
+    expect(rules).toHaveLength(2);
   });
 });

@@ -28,7 +28,7 @@ export type Overrides = Record<string, Override>;
 
 /** ✓ komponen cocok · F total cocok · ✗ total selisih · ○ belum tercakup / perlu cek manual. */
 export type Mark = "check" | "foot" | "fail" | "open";
-export type TotalBasis = "garis" | "label" | "manual";
+export type TotalBasis = "garis" | "tebal" | "label" | "manual";
 
 export interface Footing {
   id: string;
@@ -81,6 +81,8 @@ export interface FootingInput {
   /** Skala efektif per halaman; null = belum ditetapkan. */
   scales: (Scale | null)[];
   overrides?: Overrides;
+  /** Nama font tebal (angka bercetak tebal = calon total, seperti garis). */
+  boldFonts?: Set<string>;
 }
 
 const TOTAL_LABEL_RE = /^(jumlah|total|sub[\s-]?(jumlah|total)|neto|bersih)\b/i;
@@ -282,6 +284,12 @@ export function computeVerticalFooting(input: FootingInput): FootingResult {
       const lined = [...lines.values()].filter((v) => v === "above").length;
       // Garis di atas hampir semua angka = border tabel (grid), bukan penanda total.
       const gridLike = active.length >= 4 && lined / active.length > 0.6;
+      // Angka tebal = calon total, kecuali hampir seluruh kolom tebal (tabel yang memang dicetak tebal).
+      // Tebal hanya bila SEMUA potongan digitnya tebal (angka terpecah bisa berganti font di tengah).
+      const isBold = (t: NumberToken) =>
+        t.fontNames.length > 0 && t.fontNames.every((f) => !!input.boldFonts?.has(f));
+      const boldCount = active.filter(isBold).length;
+      const boldUseful = !(active.length >= 4 && boldCount / active.length > 0.6);
 
       const continued = prevTails.some((p) => Math.abs(p.right - col.right) <= 6 && p.trailingItems > 0);
       const firstId = active[0].id;
@@ -299,13 +307,16 @@ export function computeVerticalFooting(input: FootingInput): FootingResult {
           if (ov === "total") basis.push("manual");
           if (ov !== "not-total") {
             if (!gridLike && lines.get(t.id) === "above") basis.push("garis");
+            if (boldUseful && isBold(t)) basis.push("tebal");
             if (TOTAL_LABEL_RE.test(t.label.trim())) basis.push("label");
           }
           if (basis.length === 0) {
             open.push({ token: t, isTotal: false });
             continue;
           }
-          const lineOnly = basis.length === 1 && basis[0] === "garis";
+          // Garis/tebal saja = tanda lemah: tanpa susunan komponen yang masuk akal, angka ini bukan total
+          // (mis. garis bawah judul kolom, atau baris tebal pertama "PENDAPATAN" yang justru komponen).
+          const lineOnly = basis.every((b) => b === "garis" || b === "tebal");
 
           // Angka biasa sejak total terakhir WAJIB ikut.
           let loose = 0;
@@ -323,12 +334,15 @@ export function computeVerticalFooting(input: FootingInput): FootingResult {
             exact ??
             [...cands].sort((a, b) => Math.abs(a.difference) - Math.abs(b.difference) || a.k - b.k)[0];
 
-          if (!best || (lineOnly && loose === 0 && !exact)) {
+          // Tanda lemah + tidak cocok, dan tidak ada angka biasa di atasnya ATAU satu-satunya kemungkinan
+          // komponen hanyalah satu angka biasa → kemungkinan besar bukan total
+          // (mis. "BEBAN POKOK PENDAPATAN" yang tebal tepat di bawah "PENDAPATAN").
+          if (!best || (lineOnly && !exact && (loose === 0 || open.length <= 1))) {
             if (lineOnly) {
-              // Garis tanpa komponen yang masuk akal (mis. garis bawah judul kolom): bukan total.
               notes.set(
                 t.id,
-                "Ada garis di atas angka ini, tetapi tidak ada susunan komponen yang cocok; diperlakukan sebagai angka biasa.",
+                `${basis.includes("garis") ? "Ada garis di atas angka ini" : "Angka ini tebal"}, tetapi tidak ada susunan ` +
+                  "komponen yang cocok; diperlakukan sebagai angka biasa.",
               );
               open.push({ token: t, isTotal: false });
               continue;
@@ -438,6 +452,7 @@ export function computeVerticalFooting(input: FootingInput): FootingResult {
 
 const BASIS_TEXT: Record<TotalBasis, string> = {
   garis: "garis di atas angka",
+  tebal: "angka tebal",
   label: "label baris",
   manual: "ditandai manual",
 };

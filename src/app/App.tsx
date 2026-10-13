@@ -8,6 +8,7 @@ import { SelectionPanel } from "../features/panel/SelectionPanel";
 import { FootingPanel } from "../features/footing/FootingPanel";
 import { FootingDetail } from "../features/footing/FootingDetail";
 import { footingBlocks, type FootingBlock } from "../domain/footing/blocks";
+import { pageDiagnostics } from "../domain/footing/diagnostics";
 import {
   onParentMessage,
   openLargeWindow,
@@ -368,7 +369,22 @@ export function App() {
               }}
             />
           )}
-          {r.pdf && <PageStats stats={r.stats} current={r.page} onPick={r.goToPage} />}
+          {r.pdf && (
+            <PageStats
+              stats={r.stats}
+              current={r.page}
+              onPick={r.goToPage}
+              diagnostics={() =>
+                pageDiagnostics({
+                  page: r.page,
+                  tokens: r.tokens,
+                  rules: r.rules?.[r.page - 1] ?? null,
+                  boldFonts: r.boldFonts,
+                  footing: r.footing,
+                })
+              }
+            />
+          )}
         </aside>
       </div>
     </div>
@@ -416,11 +432,16 @@ function PageStats({
   stats,
   current,
   onPick,
+  diagnostics,
 }: {
   stats: { page: number; textItems: number; numberTokens: number; rules: number | null }[];
   current: number;
   onPick: (p: number) => void;
+  /** Teks diagnostik halaman aktif dengan angka disamarkan. */
+  diagnostics: () => string;
 }) {
+  const [text, setText] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   return (
     <details className="panel stats">
       <summary>Diagnostik ekstraksi per halaman</summary>
@@ -444,6 +465,39 @@ function PageStats({
           ))}
         </tbody>
       </table>
+      <div className="diag">
+        <button
+          type="button"
+          onClick={() => {
+            setText(diagnostics());
+            setCopied(false);
+          }}
+        >
+          Diagnostik hal. {current} (angka disamarkan)
+        </button>
+        {text && (
+          <>
+            <p className="small muted">
+              Semua digit diganti 9; label baris tetap terlihat. Periksa dulu isinya, lalu salin dan kirim ke
+              pengembang bila ada salah baca. PDF tidak perlu dikirim.
+            </p>
+            <textarea className="mono small" readOnly value={text} rows={10} onFocus={(e) => e.currentTarget.select()} />
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(text);
+                  setCopied(true);
+                } catch {
+                  setCopied(false); // izin clipboard ditolak: pilih teks lalu Ctrl+C
+                }
+              }}
+            >
+              {copied ? "Tersalin ✓" : "Salin"}
+            </button>
+          </>
+        )}
+      </div>
     </details>
   );
 }

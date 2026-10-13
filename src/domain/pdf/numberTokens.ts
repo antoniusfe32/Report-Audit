@@ -16,6 +16,8 @@ export interface RawTextItem {
   width: number;
   /** Tinggi (≈ ukuran font) dalam satuan PDF. */
   height: number;
+  /** Nama font internal pdf.js (mis. "g_d0_f2"); dipakai untuk mengenali teks tebal. */
+  fontName?: string;
 }
 
 /** Kotak dalam koordinat PDF: x ke kanan, y ke ATAS (asal di kiri-bawah halaman). */
@@ -48,6 +50,8 @@ export interface NumberToken {
    * angka terpecah menjadi dua potongan teks.
    */
   source: string[];
+  /** Nama font internal pdf.js dari setiap potongan berdigit angka ini (untuk mengenali angka tebal). */
+  fontNames: string[];
 }
 
 interface WordSpan {
@@ -106,6 +110,8 @@ function isNumericText(s: string): boolean {
 interface CellItem extends RawTextItem {
   /** Teks mentah setiap potongan yang digabung. */
   sources: string[];
+  /** Font setiap potongan (sejajar dengan `sources`). */
+  fonts: (string | undefined)[];
   /** Indeks potongan pertama (dipakai untuk id token yang stabil). */
   index: number;
 }
@@ -116,7 +122,7 @@ interface CellItem extends RawTextItem {
  * Jarak > 0,6 × tinggi font tidak digabung: itu sudah jarak antarkolom (pdf.js memakai batas yang sama).
  */
 export function mergeNumberFragments(items: RawTextItem[]): CellItem[] {
-  const cells: CellItem[] = items.map((it, index) => ({ ...it, sources: [it.str], index }));
+  const cells: CellItem[] = items.map((it, index) => ({ ...it, sources: [it.str], fonts: [it.fontName], index }));
   const numeric = cells
     .filter((c) => isNumericText(c.str))
     .sort((a, b) => b.transform[5] - a.transform[5] || a.transform[4] - b.transform[4]);
@@ -137,6 +143,7 @@ export function mergeNumberFragments(items: RawTextItem[]): CellItem[] {
           str: prev.str + (gap > 0.1 * h ? " " : "") + it.str,
           width: it.transform[4] + it.width - prev.transform[4],
           sources: [...prev.sources, it.str],
+          fonts: [...prev.fonts, it.fontName],
         };
         cur = joined;
         replaced.set(joined.index, joined);
@@ -180,6 +187,11 @@ export function joinNumberFragments(str: string, words: WordSpan[], locale: Numb
     i = used + 1;
   }
   return out;
+}
+
+/** Font setiap potongan yang berisi digit (kurung/tanda yang terpisah tidak dihitung). */
+function digitFonts(item: CellItem): string[] {
+  return item.sources.flatMap((src, i) => (/\d/.test(src) && item.fonts[i] ? [item.fonts[i]!] : []));
 }
 
 export function extractNumberTokens(
@@ -237,6 +249,7 @@ export function extractNumberTokens(
         hint: classify(w.text, parsed),
         prose: !isSingleCell && (hasLetters(after) || /^[.,;:]/.test(after)),
         source: item.sources,
+        fontNames: digitFonts(item),
       });
     }
   }
@@ -244,9 +257,39 @@ export function extractNumberTokens(
   return tokens.sort((a, b) => b.box.y1 - a.box.y1 || a.box.x0 - b.box.x0);
 }
 
+/** Kata penyambung di akhir baris: label kemungkinan bersambung ke baris berikutnya. */
+const CONNECTOR_END = /\b(dan|atau|yang|untuk|dari|ke|atas|dengan|sebelum|setelah|sesudah|pada|di|serta|akan|tidak|program|and|or|of|the|to|from|for|before|after|on|in)$/i;
+/** Isi sel catatan seperti "19", "12c", "17,22h" (bukan nominal). */
+const NOTE_LIKE = /^\(?\d{1,2}[a-z]?(\s*[,;]\s*\d{1,2}[a-z]?)*\)?$/i;
+
+const isUpper = (s: string) => /[A-Z]/.test(s) && s === s.toUpperCase();
+
+/** Teks berhuruf pada satu baris (baseline sama), di kiri batas x tertentu, urut kiri → kanan. */
+function lineItems(items: RawTextItem[], baselineY: number, height: number, maxX: number): RawTextItem[] {
+  const tolerance = height * 0.4;
+  return items
+    .filter((it) => {
+      const [, , , , e, f] = it.transform;
+      return Math.abs(f - baselineY) < tolerance && e < maxX - 1 && hasLetters(it.str);
+    })
+    .sort((a, b) => a.transform[4] - b.transform[4]);
+}
+
+const joinText = (parts: RawTextItem[]) =>
+  parts
+    .map((it) => it.str.trim())
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+
 /**
  * Label baris = gabungan teks berhuruf di sebelah kiri angka, pada baris yang sama.
  * Baris dianggap sama bila selisih baseline < 40% tinggi font.
+ *
+ * Label yang terbungkus ke beberapa baris (angka di baris terakhir, gaya tabel Word) digabung dengan baris
+ * di atasnya bila: jaraknya rapat (≤ 1,5 tinggi font), baris atas tidak berisi nominal, posisinya tidak
+ * lebih menjorok, dan memang tampak bersambung — baris bawah diawali huruf kecil, baris atas diakhiri kata
+ * penyambung ("dan", "sebelum", …), atau keduanya HURUF BESAR dengan font yang sama.
  */
 export function findRowLabel(
   items: RawTextItem[],
@@ -254,17 +297,40 @@ export function findRowLabel(
   height: number,
   tokenX0: number,
 ): string {
-  const tolerance = height * 0.4;
-  return items
-    .filter((it) => {
-      const [, , , , e, f] = it.transform;
-      return Math.abs(f - baselineY) < tolerance && e < tokenX0 - 1 && hasLetters(it.str);
-    })
-    .sort((a, b) => a.transform[4] - b.transform[4])
-    .map((it) => it.str.trim())
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
+  let current = lineItems(items, baselineY, height, tokenX0);
+  if (current.length === 0) return "";
+  const lines = [current];
+  let base = baselineY;
+  for (let step = 0; step < 4; step++) {
+    const first = current[0];
+    const x = first.transform[4];
+    // baris tepat di atas
+    const candidates = items.filter((it) => {
+      const f = it.transform[5];
+      return f - base > height * 0.6 && f - base <= height * 1.5;
+    });
+    if (candidates.length === 0) break;
+    const upBase = candidates.reduce((m, it) => Math.min(m, it.transform[5]), Infinity);
+    const sameUpLine = candidates.filter((it) => Math.abs(it.transform[5] - upBase) < height * 0.4);
+    // Ada nominal di baris atas → itu baris tabel tersendiri.
+    const hasAmount = sameUpLine.some((it) => /\d/.test(it.str) && !hasLetters(it.str) && !NOTE_LIKE.test(it.str.trim()));
+    if (hasAmount) break;
+    const up = lineItems(sameUpLine, upBase, height, tokenX0);
+    if (up.length === 0) break;
+    const upFirst = up[0];
+    if (upFirst.transform[4] > x + 2) break; // baris atas lebih menjorok → bukan awal label ini
+    const upText = joinText(up);
+    const downText = joinText(current);
+    const continues =
+      /^[a-zà-ÿ]/.test(downText) ||
+      CONNECTOR_END.test(upText) ||
+      (isUpper(upText) && isUpper(downText) && !!upFirst.fontName && upFirst.fontName === first.fontName);
+    if (!continues) break;
+    lines.unshift(up);
+    current = up;
+    base = upBase;
+  }
+  return lines.map(joinText).join(" ");
 }
 
 /** Ringkasan kualitas teks per halaman, untuk mendeteksi PDF hasil scan. */

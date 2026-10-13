@@ -669,3 +669,17 @@ button.link {
   color: var(--neg);
   margin: 4px 0 0;
 }
+.diag {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.diag textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 4px;
+  white-space: pre;
+}

@@ -65,7 +65,8 @@ describe("contoh-footing.pdf (bertingkat, mutasi, selisih 1 disengaja, tabel ter
     expect(total(2, "LABA TAHUN BERJALAN", "112.133.671").status?.mark).toBe("foot");
     const ap = total(5, "Jumlah", "123.715.710");
     expect(ap.status?.mark).toBe("foot");
-    expect(ap.footing?.basis).toEqual(["label"]);
+    expect(ap.footing?.basis).toContain("label");
+    expect(ap.footing?.basis).not.toContain("garis");
   });
 
   it("mutasi ekuitas & mutasi aset tetap: setiap kolom di-footing vertikal", () => {

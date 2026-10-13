@@ -105,18 +105,42 @@ export async function getPageInfo(doc: PDFDocumentProxy, pageNumber: number): Pr
         transform: it.transform as number[],
         width: it.width,
         height: it.height,
+        fontName: it.fontName,
       });
     }
   }
   return { items, viewport: page.getViewport({ scale: 1 }) };
 }
 
-/** Garis horizontal satu halaman (penanda total), dalam koordinat PDF. */
-export async function getPageRules(doc: PDFDocumentProxy, pageNumber: number): Promise<HRule[]> {
+export interface PageLayout {
+  /** Garis horizontal (penanda total), dalam koordinat PDF. */
+  rules: HRule[];
+  /** Nama font (dari `fontNames`) yang tebal. */
+  boldFonts: string[];
+}
+
+/** Tebal bila nama font asli mengandung Bold/Black/Heavy/Semibold/Demi (mis. "Arial-BoldMT"). */
+const BOLD_NAME = /bold|black|heavy|semibold|demi/i;
+
+/**
+ * Tata letak satu halaman yang tidak ada di teks: garis tabel dan font tebal.
+ * `fontNames` = nama font internal yang dipakai text item halaman ini.
+ */
+export async function getPageLayout(doc: PDFDocumentProxy, pageNumber: number, fontNames: string[]): Promise<PageLayout> {
   const page = await doc.getPage(pageNumber);
   const ops = await page.getOperatorList();
   const rules = extractHorizontalRules(ops, pdfjs.OPS);
+  // Setelah daftar operator dibuat, data font tersedia di commonObjs.
+  const boldFonts = [...new Set(fontNames)].filter((name) => {
+    try {
+      if (!page.commonObjs.has(name)) return false;
+      const f = page.commonObjs.get(name) as { bold?: boolean; black?: boolean; name?: string };
+      return !!(f.bold || f.black || (f.name && BOLD_NAME.test(f.name)));
+    } catch {
+      return false;
+    }
+  });
   // Lepaskan cache operator halaman yang sedang tidak tampil, agar PDF besar tetap ringan.
   page.cleanup();
-  return rules;
+  return { rules, boldFonts };
 }
