@@ -7,6 +7,7 @@ import type { NumberToken } from "../../domain/pdf/numberTokens";
 import { formatDiff, type Footing, type FootingResult } from "../../domain/footing/verticalFooting";
 import { SCALE_LABEL, type Scale, type ScaleSummary } from "../../domain/footing/scale";
 import type { ScaleChoice } from "../../app/useReviewer";
+import type { RegisterMode } from "../../app/useExcelRegister";
 
 interface Props {
   footing: FootingResult | null;
@@ -22,8 +23,8 @@ interface Props {
   onScaleChoice: (s: ScaleChoice) => void;
   onClearOverrides: () => void;
   onPick: (t: NumberToken) => void;
-  /** Register Excel; null di luar Excel (mode pratinjau browser / jendela besar). */
-  excel: { status: string | null; busy: boolean; onSync: () => void } | null;
+  /** Status register Excel. */
+  excel: { mode: RegisterMode; status: { ok: boolean; text: string } | null; busy: boolean; onSync: () => void };
 }
 
 const SCALES: Scale[] = ["penuh", "ribuan", "jutaan", "miliaran"];
@@ -96,23 +97,7 @@ export function FootingPanel(p: Props) {
       )}
 
       {p.footingOn && !p.footing && <p className="small muted">Membaca garis tabel…</p>}
-      {p.footing && p.excel && (
-        <div className="excel-sync">
-          <p className="small">
-            Semua hasil footing (F, ✗, ○) otomatis masuk ke sheet <strong>RA_Register</strong>. Klik baris di sheet
-            itu untuk menyorot angkanya di PDF. Kolom Komentar tidak ditimpa.
-          </p>
-          <div className="actions-row">
-            <button type="button" onClick={p.excel.onSync} disabled={p.excel.busy}>
-              {p.excel.busy ? "Menulis ke Excel…" : "Kirim ulang ke Excel"}
-            </button>
-          </div>
-          {p.excel.status && <p className="small ok-text">{p.excel.status}</p>}
-        </div>
-      )}
-      {p.footing && !p.excel && (
-        <p className="small muted">Di dalam Excel, hasil footing otomatis masuk ke sheet RA_Register.</p>
-      )}
+      {p.footing && <ExcelStatus {...p.excel} />}
       {p.footing && <Results footing={p.footing} byId={byId} onPick={p.onPick} />}
     </section>
   );
@@ -216,5 +201,30 @@ function FootingList({
         </ul>
       )}
     </>
+  );
+}
+
+const MODE_TEXT: Record<RegisterMode, string> = {
+  pane: "Semua hasil footing (F, ✗, ○) otomatis masuk ke sheet RA_Register. Klik baris di sheet itu untuk menyorot angkanya di PDF. Kolom Komentar tidak ditimpa.",
+  dialog:
+    "Jendela besar tidak bisa menulis ke workbook: hasil dikirim ke panel samping Report Audit, lalu panel samping yang menulis ke sheet RA_Register. Jangan tutup panel samping.",
+  off: "Tidak terhubung ke Excel (mode pratinjau browser), jadi hasil TIDAK ditulis ke sheet RA_Register.",
+};
+
+function ExcelStatus({ mode, status, busy, onSync }: Props["excel"]) {
+  return (
+    <div className={`excel-sync ${mode === "off" ? "is-off" : ""}`}>
+      <p className="small">
+        <strong>Register Excel:</strong> {MODE_TEXT[mode]}
+      </p>
+      {mode !== "off" && (
+        <div className="actions-row">
+          <button type="button" onClick={onSync} disabled={busy}>
+            {busy ? "Menulis ke Excel…" : "Kirim ulang ke Excel"}
+          </button>
+        </div>
+      )}
+      {status && <p className={`small ${status.ok ? "ok-text" : "err-text"}`}>{status.text}</p>}
+    </div>
   );
 }

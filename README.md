@@ -91,6 +91,11 @@ PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di 
 - [ ] Ketik komentar di kolom **Komentar** → klik **Kirim ulang ke Excel** → komentar tidak hilang.
 - [ ] Klik angka total di PDF → **Bukan total** → baris tersebut di register menjadi "tidak berlaku".
 - [ ] Tutup lalu buka lagi add-in, buka PDF yang sama, klik baris register → tetap tersorot.
+- [ ] **Lewat jendela besar:** biarkan panel samping terbuka → **Jendela besar ⧉** → buka PDF → **Jalankan footing**.
+      Kotak "Register Excel" di jendela besar harus berubah menjadi pesan hijau "Sheet RA_Register diperbarui…".
+      Klik baris register di Excel → jendela besar menyorot angkanya.
+- [ ] Kalau sheet tidak muncul: baca kotak **Register Excel** di panel footing (kuning = tidak terhubung ke Excel,
+      merah = pesan error) dan laporkan isinya.
 
 ## Batasan yang diketahui
 

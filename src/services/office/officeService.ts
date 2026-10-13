@@ -4,6 +4,8 @@
  * dengan pesan yang jelas, bukan crash.
  */
 
+import { parseMessage, type ToDialogMessage, type ToPaneMessage } from "./messages";
+
 export type HostStatus = "loading" | "excel" | "browser";
 
 export interface SelectionPayload {
@@ -21,8 +23,9 @@ export function readyOffice(): Promise<HostStatus> {
       resolve("browser");
       return;
     }
-    // Jika Office.js tidak siap dalam 4 detik (mis. dibuka di browser biasa), anggap mode browser.
-    const timer = setTimeout(() => resolve("browser"), 4000);
+    // Di dalam Excel, onReady selalu terpanggil (Excel web kadang lambat) → tunggu cukup lama.
+    // Di browser biasa office.js juga memanggil onReady (host kosong), jadi batas waktu ini jarang terpakai.
+    const timer = setTimeout(() => resolve("browser"), 15000);
     officeGlobal.onReady((info) => {
       clearTimeout(timer);
       resolve(info.host === officeGlobal.HostType.Excel ? "excel" : "browser");
@@ -49,14 +52,18 @@ export async function writeToActiveCell(payload: SelectionPayload): Promise<stri
   return address;
 }
 
-export type DialogHandle = { close: () => void };
+export type DialogHandle = {
+  close: () => void;
+  /** Kirim pesan ke jendela besar (DialogApi 1.2). false bila tidak didukung/gagal. */
+  send: (msg: ToDialogMessage) => boolean;
+};
 
 /**
  * Buka aplikasi yang sama di jendela besar (Office Dialog API).
  * Di Excel web jendela ini muncul sebagai popup browser.
  */
 export function openLargeWindow(
-  onMessage: (payload: SelectionPayload) => void,
+  onMessage: (msg: ToPaneMessage) => void,
   onClosed: () => void,
 ): Promise<DialogHandle> {
   const url = new URL(window.location.href);
@@ -80,27 +87,58 @@ export function openLargeWindow(
         const dialog = result.value;
         dialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
           if ("message" in arg) {
-            try {
-              const data = JSON.parse(arg.message) as SelectionPayload;
-              if (data.type === "selection") onMessage(data);
-            } catch {
-              /* abaikan pesan yang tidak dikenal */
-            }
+            const data = parseMessage<ToPaneMessage>(arg.message);
+            if (data) onMessage(data);
           }
         });
         dialog.addEventHandler(Office.EventType.DialogEventReceived, () => onClosed());
-        resolve({ close: () => dialog.close() });
+        resolve({
+          close: () => dialog.close(),
+          send: (msg) => {
+            try {
+              dialog.messageChild(JSON.stringify(msg));
+              return true;
+            } catch {
+              return false;
+            }
+          },
+        });
       },
     );
   });
 }
 
-/** Dipanggil dari dalam jendela besar untuk mengirim angka terpilih ke task pane. */
-export function sendToTaskPane(payload: SelectionPayload): boolean {
+/** Dipanggil dari dalam jendela besar untuk mengirim pesan ke task pane. */
+export function sendToTaskPane(payload: ToPaneMessage): boolean {
   try {
     Office.context.ui.messageParent(JSON.stringify(payload));
     return true;
   } catch {
     return false;
   }
+}
+
+/**
+ * Dipanggil di dalam jendela besar: terima pesan dari task pane (DialogApi 1.2).
+ * Mengembalikan false bila host tidak mendukung.
+ */
+export function onParentMessage(handler: (msg: ToDialogMessage) => void): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      if (!Office.context.requirements.isSetSupported("DialogApi", "1.2")) {
+        resolve(false);
+        return;
+      }
+      Office.context.ui.addHandlerAsync(
+        Office.EventType.DialogParentMessageReceived,
+        (arg: { message?: string }) => {
+          const msg = arg.message ? parseMessage<ToDialogMessage>(arg.message) : null;
+          if (msg) handler(msg);
+        },
+        (res) => resolve(res.status === Office.AsyncResultStatus.Succeeded),
+      );
+    } catch {
+      resolve(false);
+    }
+  });
 }

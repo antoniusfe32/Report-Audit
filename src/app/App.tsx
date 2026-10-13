@@ -59,10 +59,15 @@ export function App() {
     }
   };
 
+  const register = useExcelRegister(r, host, isDialog, flash, dialogRef);
+
   const openDialog = async () => {
     try {
       dialogRef.current = await openLargeWindow(
-        (payload) => setRemote(payload),
+        (msg) => {
+          if (msg.type === "selection") setRemote(msg);
+          else if (msg.type === "register-chunk") register.receiveChunk(msg);
+        },
         () => (dialogRef.current = null),
       );
     } catch (err) {
@@ -70,8 +75,8 @@ export function App() {
     }
   };
 
+
   const pageCount = r.pdf?.pageCount ?? 0;
-  const register = useExcelRegister(r, host, !isDialog, flash);
 
   // Sorot susunan footing dari angka terpilih: komponen dari total, atau total + komponen saudaranya.
   const selectedStatus = r.selected ? r.footing?.byToken.get(r.selected.id) : undefined;
@@ -306,11 +311,7 @@ export function App() {
               onHide={() => r.setFootingOn(false)}
               onScaleChoice={r.setScaleChoice}
               onClearOverrides={r.clearOverrides}
-              excel={
-                register.active
-                  ? { status: register.syncStatus, busy: register.syncing, onSync: register.sync }
-                  : null
-              }
+              excel={{ mode: register.mode, status: register.status, busy: register.busy, onSync: register.sync }}
               onPick={(t) => {
                 r.select(t);
                 r.goTo(t);
