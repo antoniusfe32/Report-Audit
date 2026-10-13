@@ -297,7 +297,7 @@ const PageView = memo(function PageView({
               : match === "same-value"
                 ? "Nilai sama"
                 : match === "sign-mismatch"
-                  ? "Nilai sama, tanda berbeda"
+                  ? "Angka sama, tanda berlawanan"
                   : `Klik untuk memilih ${t.text}`;
           const title = st ? `${base}\n${MARK_TEXT[st.mark]}\n${st.reason}` : base;
           return (

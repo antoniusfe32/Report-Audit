@@ -336,8 +336,8 @@ button.link {
   outline: 2px solid var(--same);
 }
 .num.is-sign-mismatch {
-  background: rgba(180, 35, 24, 0.12);
-  outline: 2px dashed var(--neg);
+  background: rgba(26, 127, 55, 0.12);
+  outline: 2px dashed var(--same);
 }
 .num.is-selected {
   background: rgba(199, 119, 0, 0.22);
@@ -494,7 +494,11 @@ button.link {
   border-left: 3px solid var(--same);
 }
 .occ-sign-mismatch {
-  border-left: 3px dashed var(--neg);
+  border-left: 3px dashed var(--same);
+}
+.tag.sign {
+  background: var(--info-bg);
+  color: var(--ink);
 }
 .occ-page {
   font-weight: 600;
