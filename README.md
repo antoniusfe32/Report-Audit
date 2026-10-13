@@ -22,7 +22,9 @@ PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di 
 | Jendela besar (Office dialog) | ✅ kode siap, **belum diuji di Excel** |
 | **Footing vertikal** satu tombol untuk seluruh dokumen (✓ / F / ✗ selisih / ○), toleransi 0 | ✅ Fase 1.3 — **belum diuji di Excel** |
 | Koreksi manual footing: "ini total" / "bukan total" / "keluarkan dari footing" | ✅ Fase 1.3 — **belum diuji di Excel** |
-| Cross footing horizontal (mutasi ekuitas, aset tetap), tarik kotak, sum snip, register Excel | ⏳ langkah berikutnya |
+| Tampilan footing berupa **blok warna** (biru = dijumlahkan, hijau = total cocok, merah = selisih) | ✅ |
+| **Register Excel `RA_Register`**: semua hasil footing otomatis masuk; klik baris → sorot di PDF | ✅ kode siap, **belum diuji di Excel** |
+| Cross footing horizontal (mutasi ekuitas, aset tetap), tarik kotak, sum snip | ⏳ langkah berikutnya |
 
 ## Cara memasang (sekali saja)
 
@@ -80,6 +82,15 @@ PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di 
 - [ ] Coba dengan **draft PDF asli**: apakah total terbaca (garis di atas angka)? Catat halaman yang hasilnya salah
       dan buka **Diagnostik** (kolom **Garis**) — angka 0 di kolom Garis berarti garis tabel tidak terbaca.
 - [ ] Coba PDF besar (80+ halaman): apakah scroll tetap lancar?
+
+### Register Excel (RA_Register)
+
+- [ ] Di workbook kosong: buka `samples/contoh-footing.pdf` → **Jalankan footing**. Dalam ±1 detik muncul sheet
+      **RA_Register** berisi satu baris per total (status F cocok / ✗ selisih / ○ cek manual) dan pesan hijau di panel.
+- [ ] Klik sel di baris "Jumlah aset lancar" (✗) → viewer loncat ke hal. 1 dan menyorot total + komponennya.
+- [ ] Ketik komentar di kolom **Komentar** → klik **Kirim ulang ke Excel** → komentar tidak hilang.
+- [ ] Klik angka total di PDF → **Bukan total** → baris tersebut di register menjadi "tidak berlaku".
+- [ ] Tutup lalu buka lagi add-in, buka PDF yang sama, klik baris register → tetap tersorot.
 
 ## Batasan yang diketahui
 
