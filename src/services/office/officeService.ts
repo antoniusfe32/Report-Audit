@@ -52,6 +52,20 @@ export async function writeToActiveCell(payload: SelectionPayload): Promise<stri
   return address;
 }
 
+/** Tulis satu nilai (angka saja) ke sel aktif. Mengembalikan alamat sel. */
+export async function writeValueToActiveCell(value: number): Promise<string> {
+  let address = "";
+  await Excel.run(async (context) => {
+    const cell = context.workbook.getActiveCell();
+    cell.values = [[value]];
+    cell.numberFormat = [[Number.isInteger(value) ? "#,##0;(#,##0);-" : "#,##0.##;(#,##0.##);-"]];
+    cell.load("address");
+    await context.sync();
+    address = cell.address;
+  });
+  return address;
+}
+
 export type DialogHandle = {
   close: () => void;
   /** Kirim pesan ke jendela besar (DialogApi 1.2). false bila tidak didukung/gagal. */

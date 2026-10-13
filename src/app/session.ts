@@ -5,6 +5,7 @@
 import type { NumberLocale } from "../domain/parsing/parseAmount";
 import type { Overrides } from "../domain/footing/verticalFooting";
 import type { Scale } from "../domain/footing/scale";
+import type { Snip } from "../domain/snip/sumSnip";
 
 export interface SessionState {
   locale: NumberLocale;
@@ -13,6 +14,8 @@ export interface SessionState {
   scaleChoice: Scale | "auto" | null;
   footingOn: boolean;
   page: number;
+  /** Sum snip yang disimpan pengguna (koreksi + register). */
+  snips: Snip[];
 }
 
 /**
@@ -23,5 +26,6 @@ export function sessionKey(s: SessionState): string {
   const overrides = Object.keys(s.overrides)
     .sort()
     .map((k) => [k, s.overrides[k]]);
-  return JSON.stringify([s.locale, s.scaleChoice, s.footingOn, overrides]);
+  const snips = (s.snips ?? []).map((x) => [x.id, x.totalId, x.tokenIds]);
+  return JSON.stringify([s.locale, s.scaleChoice, s.footingOn, overrides, snips]);
 }

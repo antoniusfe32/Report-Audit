@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { Reviewer } from "./useReviewer";
 import { sendToTaskPane, type DialogHandle, type HostStatus } from "../services/office/officeService";
-import { footingRows, resolveLocation, shortFingerprint, type RegisterRow } from "../domain/register/register";
+import { registerRows, resolveLocation, shortFingerprint, type RegisterRow } from "../domain/register/register";
 import { syncRegister, watchRegisterSelection, type RegisterPick } from "../services/office/registerService";
 import { ChunkAssembler, toChunks, type ChunkMsg, type ToDialogMessage } from "../services/office/messages";
 
@@ -57,7 +57,8 @@ export function useExcelRegister(
     if (loc.doc !== r.pdf.fingerprint) {
       flash("⚠ Versi draft berbeda dari register (sidik tidak sama); lokasi mungkin bergeser.");
     }
-    if (!r.footingOn) void r.runFooting();
+    if (pick.id.startsWith("S-")) r.setActiveSnipId(pick.id.slice(2));
+    else if (!r.footingOn) void r.runFooting();
     r.select(focus);
     r.goTo(focus);
     return true;
@@ -155,10 +156,16 @@ export function useExcelRegister(
   );
 
   // ---------------- Kirim (otomatis setiap hasil footing berubah) ----------------
+  /** Sudah pernah menulis register untuk dokumen ini (agar penghapusan sum snip terakhir ikut tercatat). */
+  const synced = useRef(false);
+  useEffect(() => {
+    synced.current = false;
+  }, [r.pdf]);
   const sync = useCallback(() => {
     const { r } = latest.current;
-    if (!r.footing || !r.pdf) return;
-    const rows = footingRows(r.footing, r.tokens, r.pdf.fingerprint);
+    if (!r.pdf || (!r.footing && r.snips.length === 0 && !synced.current)) return;
+    const rows = registerRows(r.footing, r.snipEvals, r.tokens, r.pdf.fingerprint);
+    synced.current = true;
     if (mode === "pane") {
       write(rows, false);
     } else if (mode === "dialog") {
@@ -179,10 +186,10 @@ export function useExcelRegister(
   }, [mode, write, paneMirror]);
 
   useEffect(() => {
-    if (mode === "off" || !r.footing || !r.pdf) return;
+    if (mode === "off" || !r.pdf || (!r.footing && r.snips.length === 0 && !synced.current)) return;
     const t = window.setTimeout(sync, 800);
     return () => window.clearTimeout(t);
-  }, [mode, r.footing, r.pdf, sync]);
+  }, [mode, r.footing, r.snipEvals, r.pdf, sync]);
 
   return { mode, status, busy, sync, receiveChunk, handleParentMessage };
 }

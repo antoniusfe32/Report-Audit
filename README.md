@@ -24,7 +24,9 @@ PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di 
 | Koreksi manual footing: "ini total" / "bukan total" / "keluarkan dari footing" | ✅ Fase 1.3 — **belum diuji di Excel** |
 | Tampilan footing berupa **blok warna** (biru = dijumlahkan, hijau = total cocok, merah = selisih) | ✅ |
 | **Register Excel `RA_Register`**: semua hasil footing otomatis masuk; klik baris → sorot di PDF | ✅ kode siap, **belum diuji di Excel** |
-| Cross footing horizontal (mutasi ekuitas, aset tetap), tarik kotak, sum snip | ⏳ langkah berikutnya |
+| **Sum snip**: tarik kotak → jumlah, bandingkan dengan total (toleransi 0), Kirim ke Excel, sekaligus koreksi footing | ✅ kode siap, **belum diuji di Excel** |
+| Tombol **↶ Urungkan** dan daftar **Koreksi manual** | ✅ |
+| Cross footing horizontal (mutasi ekuitas, aset tetap), tie yang dikonfirmasi ke register | ⏳ langkah berikutnya |
 
 ## Cara memasang (sekali saja)
 
@@ -82,6 +84,17 @@ PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di 
 - [ ] Coba dengan **draft PDF asli**: apakah total terbaca (garis di atas angka)? Catat halaman yang hasilnya salah
       dan buka **Diagnostik** (kolom **Garis**) — angka 0 di kolom Garis berarti garis tabel tidak terbaca.
 - [ ] Coba PDF besar (80+ halaman): apakah scroll tetap lancar?
+
+### Sum snip (1.4)
+
+- [ ] Buka `samples/contoh-footing.pdf` → klik **Σ Tarik kotak** → tarik kotak dari "Kas dan setara kas" 2025 sampai
+      "Jumlah aset lancar" 2025. Panel Sum snip: 6 angka, jumlah 283.760.930, **✗ selisih 1**.
+- [ ] Hapus centang "angka terakhir adalah total" → hasil menjadi "Σ jumlah". Centang lagi.
+- [ ] Klik sel kosong di Excel → **Kirim ke Excel** → sel berisi 283.760.930; sheet RA_Register mendapat baris
+      jenis "Sum snip".
+- [ ] Coba juga dari **jendela besar** (panel samping tetap terbuka).
+- [ ] Hapus sum snip di daftar → klik **↶ Urungkan** → kembali.
+- [ ] Klik angka biasa → **Ini total** → muncul di daftar **Koreksi manual** → **Batalkan** (atau ↶ Urungkan).
 
 ### Register Excel (RA_Register)
 

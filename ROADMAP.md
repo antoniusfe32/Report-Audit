@@ -101,26 +101,33 @@ Status 13 Okt 2026: **footing vertikal** selesai di kode (menunggu uji pemilik d
       F tidak diberikan (jadi ○ + alasan) bila ada angka ambigu, skala belum ditetapkan, atau tabel tampak
       lanjutan dari halaman sebelumnya.
 - [x] Nomor catatan, tahun, persentase tidak ikut footing (juga nomor halaman dan angka di dalam kalimat).
-- [ ] Koreksi manual: klik angka → "ini total" / "keluarkan dari tabel" ✅ (+ "bukan total"); tarik kotak → paksa
-      jadi satu tabel ⏳ (dikerjakan bersama 1.4 karena memakai mekanisme tarik kotak yang sama).
+- [x] Koreksi manual: klik angka → "ini total" / "keluarkan dari tabel" ✅ (+ "bukan total"); tarik kotak → paksa
+      jadi satu tabel ✅ lewat sum snip (1.4).
       Koreksi langsung menghitung ulang ✅.
 - [x] Uji dengan PDF sintetis baru (`scripts/make_sample_pdf.py --footing` → `samples/contoh-footing.pdf`):
       laporan posisi keuangan bertingkat, **mutasi ekuitas**, **mutasi aset tetap**, dalam ribuan, bergaris total,
       dengan 5 **selisih 1 yang disengaja** (semua ✗) dan tabel terpotong ke halaman berikutnya (○, bukan salah F).
 
-### 1.4 Sum snip (tarik kotak)
-- [ ] Di viewer (terutama jendela besar): tarik kotak di atas angka vertikal ATAU horizontal → tampil jumlah
-      angka terpilih, banyaknya angka, kurung = negatif.
-- [ ] Bila angka terakhir di kotak tampak total (garis/label) → bandingkan, tampilkan selisih (toleransi 0).
-- [ ] Tombol **Kirim ke Excel**: tulis hasil SUM ke sel aktif + catat ke `RA_Register` (lihat 1.5).
-- [ ] Sum snip juga berfungsi sebagai alat koreksi bila auto footing salah membaca tabel.
+### 1.4 Sum snip (tarik kotak) — kode selesai 13 Okt 2026, **belum diuji di Excel**
+- [x] Di viewer (jendela besar maupun panel samping): tombol **Σ Tarik kotak**, lalu tarik kotak di atas angka
+      vertikal ATAU horizontal → tampil jumlah angka terpilih, banyaknya angka, kurung = negatif. Kolom nomor
+      catatan dan tahun yang ikut tertarik tidak dijumlahkan.
+- [x] Bila angka terakhir di kotak tampak total (garis/tebal/label) → bandingkan, tampilkan selisih (toleransi 0).
+      Pengguna bisa mencentang/menghapus centang "angka terakhir adalah total".
+- [x] Tombol **Kirim ke Excel**: tulis hasil SUM (angka saja, keputusan pemilik) ke sel aktif + catat ke
+      `RA_Register` (jenis "Sum snip"). Dari jendela besar, penulisan dilakukan lewat panel samping.
+- [x] Sum snip juga berfungsi sebagai alat koreksi: sum snip yang punya total **menggantikan** hasil footing
+      otomatis untuk total itu (keputusan pemilik), termasuk di register.
+- [x] Tombol **↶ Urungkan** setelah setiap koreksi (koreksi manual & sum snip), dan daftar **Koreksi manual** di
+      panel footing (klik → menuju angka, "Batalkan" per koreksi). Masukan: salah klik "Ini total" sulit dibatalkan.
+- [x] Sum snip ikut tersinkron antara panel samping dan jendela besar.
 
 ### 1.5 Register Excel + klik Excel → sorot di PDF — footing selesai di kode 13 Okt 2026, **belum diuji di Excel**
 - [x] Tabel Excel terstruktur **`RA_Register`** (sheet `RA_Register`, dibuat otomatis bila belum ada; tidak
       menimpa data lain). Kolom terlihat: ID, Jenis (Footing/Cross footing/Sum snip/Tie), Halaman, Label, Nilai
       dilaporkan, Nilai hitung, Selisih, Status, Komentar, Sidik dokumen (singkat). Kolom tersembunyi: lokasi
       (halaman + kotak koordinat PDF semua angka yang terlibat, JSON).
-- [ ] Hasil auto footing ~~yang ✗ dan ○~~ **semua (F, ✗, ○)** ✅, sum snip ⏳, dan tie yang dikonfirmasi ⏳ masuk ke register.
+- [ ] Hasil auto footing ~~yang ✗ dan ○~~ **semua (F, ✗, ○)** ✅, sum snip ✅, dan tie yang dikonfirmasi ⏳ masuk ke register.
 - [ ] Task pane memasang listener `onSelectionChanged`; saat pengguna mengklik baris register → viewer
       (task pane ✅ atau jendela besar via `messageChild` ⏳ bersama 1.2) loncat ke halaman dan **menyorot semua angka**
       yang terlibat.

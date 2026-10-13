@@ -4,7 +4,13 @@
  * Semua hasil adalah SARAN sistem; keputusan tetap di tangan reviewer.
  */
 import type { NumberToken } from "../../domain/pdf/numberTokens";
-import { formatDiff, type Footing, type FootingResult } from "../../domain/footing/verticalFooting";
+import {
+  formatDiff,
+  type Footing,
+  type FootingResult,
+  type Override,
+  type Overrides,
+} from "../../domain/footing/verticalFooting";
 import { SCALE_LABEL, type Scale, type ScaleSummary } from "../../domain/footing/scale";
 import type { ScaleChoice } from "../../app/useReviewer";
 import type { RegisterMode } from "../../app/useExcelRegister";
@@ -17,7 +23,8 @@ interface Props {
   scaleSummary: ScaleSummary;
   scaleChoice: ScaleChoice;
   documentScale: Scale | null;
-  overrideCount: number;
+  overrides: Overrides;
+  onCancelOverride: (tokenId: string) => void;
   onRun: () => void;
   onHide: () => void;
   onScaleChoice: (s: ScaleChoice) => void;
@@ -57,9 +64,9 @@ export function FootingPanel(p: Props) {
           <button type="button" onClick={p.onHide}>
             Sembunyikan tanda
           </button>
-          {p.overrideCount > 0 && (
+          {Object.keys(p.overrides).length > 0 && (
             <button type="button" onClick={p.onClearOverrides} title="Hapus semua koreksi manual">
-              Hapus {p.overrideCount} koreksi manual
+              Hapus {Object.keys(p.overrides).length} koreksi manual
             </button>
           )}
         </div>
@@ -98,6 +105,9 @@ export function FootingPanel(p: Props) {
 
       {p.footingOn && !p.footing && <p className="small muted">Membaca garis tabel…</p>}
       {p.footing && <ExcelStatus {...p.excel} />}
+      {Object.keys(p.overrides).length > 0 && (
+        <OverrideList overrides={p.overrides} byId={byId} onPick={p.onPick} onCancel={p.onCancelOverride} />
+      )}
       {p.footing && <Results footing={p.footing} byId={byId} onPick={p.onPick} />}
     </section>
   );
@@ -226,5 +236,50 @@ function ExcelStatus({ mode, status, busy, onSync }: Props["excel"]) {
       )}
       {status && <p className={`small ${status.ok ? "ok-text" : "err-text"}`}>{status.text}</p>}
     </div>
+  );
+}
+
+const OVERRIDE_LABEL: Record<Override, string> = {
+  total: "ditandai total",
+  "not-total": "bukan total",
+  exclude: "dikeluarkan",
+};
+
+/** Daftar koreksi manual: klik untuk menuju angkanya, "Batalkan" untuk menghapus satu koreksi. */
+function OverrideList({
+  overrides,
+  byId,
+  onPick,
+  onCancel,
+}: {
+  overrides: Overrides;
+  byId: Map<string, NumberToken>;
+  onPick: (t: NumberToken) => void;
+  onCancel: (tokenId: string) => void;
+}) {
+  const entries = Object.entries(overrides)
+    .map(([id, ov]) => ({ id, ov, t: byId.get(id) }))
+    .sort((a, b) => (a.t?.page ?? 0) - (b.t?.page ?? 0) || (b.t?.box.y1 ?? 0) - (a.t?.box.y1 ?? 0));
+  return (
+    <>
+      <h3>
+        Koreksi manual <span className="count">{entries.length}</span>
+      </h3>
+      <ul className="occ-list override-list">
+        {entries.map(({ id, ov, t }) => (
+          <li key={id} className="snip-item">
+            <button type="button" className="occ" onClick={() => t && onPick(t)} disabled={!t}>
+              <span className="occ-page">{t ? `Hal. ${t.page}` : "?"}</span>
+              <span className="occ-label">{t?.label || "(tanpa label)"}</span>
+              <span className="occ-val mono">{t?.text ?? "angka tidak ditemukan"}</span>
+              <span className="tag info">{OVERRIDE_LABEL[ov]}</span>
+            </button>
+            <button type="button" className="link" onClick={() => onCancel(id)}>
+              Batalkan
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

@@ -683,3 +683,101 @@ button.link {
   padding: 4px;
   white-space: pre;
 }
+
+/* ---------- sum snip ---------- */
+.snip-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  cursor: crosshair;
+  touch-action: none;
+}
+.snip-drag {
+  position: absolute;
+  border: 2px dashed #6b4fbb;
+  background: rgba(107, 79, 187, 0.08);
+  pointer-events: none;
+}
+.snip-shape {
+  position: absolute;
+  border: 2px solid #6b4fbb;
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 3;
+}
+.snip-shape.sk-draft {
+  border-style: dashed;
+}
+.snip-shape.ss-fail {
+  border-color: var(--f-bad);
+}
+.snip-shape.ss-foot {
+  border-color: var(--f-ok);
+}
+.snip-shape.is-active {
+  box-shadow: 0 0 0 3px rgba(107, 79, 187, 0.25);
+}
+.snip-tag {
+  position: absolute;
+  left: -2px;
+  bottom: 100%;
+  margin-bottom: 1px;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0 4px;
+  border-radius: 3px 3px 0 0;
+  background: #6b4fbb;
+  color: #fff;
+}
+.ss-fail > .snip-tag {
+  background: var(--f-bad);
+}
+.ss-foot > .snip-tag {
+  background: var(--f-ok);
+}
+.snip-draft {
+  border: 1px dashed #6b4fbb;
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  margin: 6px 0;
+}
+.check {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: 12px;
+  margin: 6px 0;
+}
+.snip-item {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.snip-item .occ {
+  flex: 1;
+  min-width: 0;
+}
+.foot-item.is-active {
+  outline: 2px solid #6b4fbb;
+}
+.foot-item.ss-fail {
+  border-left: 3px solid var(--f-bad);
+}
+.foot-item.ss-foot {
+  border-left: 3px solid var(--f-ok);
+}
+.foot-item.ss-sum {
+  border-left: 3px solid #6b4fbb;
+}
+.undo-note {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.undo-note span {
+  flex: 1;
+}
+.override-list .occ .tag {
+  grid-column: 2 / 4;
+}

@@ -44,7 +44,14 @@ export interface DialogSession {
   restoring: boolean;
 }
 
-const DEFAULT_STATE: SessionState = { locale: "id", overrides: {}, scaleChoice: "auto", footingOn: false, page: 1 };
+const DEFAULT_STATE: SessionState = {
+  locale: "id",
+  overrides: {},
+  scaleChoice: "auto",
+  footingOn: false,
+  page: 1,
+  snips: [],
+};
 
 export function useDialogSession(
   r: Reviewer,
