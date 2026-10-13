@@ -62,8 +62,9 @@ export function App() {
     }
   };
 
-  const register = useExcelRegister(r, host, isDialog, flash, dialogRef);
-  const session = useDialogSession(r, host, isDialog, dialogRef);
+  const paneMirror = useRef<string | null>(null);
+  const register = useExcelRegister(r, host, isDialog, flash, dialogRef, paneMirror);
+  const session = useDialogSession(r, host, isDialog, dialogRef, paneMirror, flash);
   // Pendengar pesan dipasang sekali; selalu teruskan ke versi terbaru hook di atas.
   const handlers = useRef({ register, session });
   handlers.current = { register, session };
@@ -78,7 +79,9 @@ export function App() {
 
   const openDialog = async () => {
     try {
-      dialogRef.current = await openLargeWindow(onPaneMessage, () => (dialogRef.current = null));
+      dialogRef.current = await openLargeWindow(onPaneMessage, () => {
+        dialogRef.current = null;
+      });
       handlers.current.session.onDialogOpened();
     } catch (err) {
       r.setError({ message: (err as Error).message });
@@ -93,8 +96,8 @@ export function App() {
     parentLinked.current = true;
     void onParentMessage((m) => {
       const h = handlers.current;
-      if (m.type === "chunk") h.session.handleDialogChunk(m);
-      else h.register.handleParentMessage(m);
+      if (m.type === "register-pick" || m.type === "register-status") h.register.handleParentMessage(m);
+      else h.session.handleParentMessage(m);
     }).then((ok) => {
       if (ok) sendToTaskPane({ type: "dialog-ready" });
       else
@@ -193,13 +196,15 @@ export function App() {
           )}
           {status && <div className="notice ok">{status}</div>}
           {linkError && <div className="notice warn">{linkError}</div>}
-          {isDialog && session.restoring && (
-            <div className="notice info">Memulihkan PDF dan progres dari panel samping…</div>
+          {session.restoring && (
+            <div className="notice info">
+              {isDialog ? "Memulihkan PDF dan progres dari panel samping…" : "Membuka PDF dari jendela besar…"}
+            </div>
           )}
-          {!isDialog && host === "excel" && session.storedName && (
+          {!isDialog && host === "excel" && session.stored && session.stored.fingerprint !== r.pdf?.fingerprint && (
             <div className="notice info session-note">
               <span>
-                Sesi tersimpan di panel ini: <strong>{session.storedName}</strong>. Klik <strong>Jendela besar ⧉</strong>{" "}
+                Sesi tersimpan di panel ini: <strong>{session.stored.name}</strong>. Klik <strong>Jendela besar ⧉</strong>{" "}
                 untuk melanjutkan tanpa memilih file lagi. Sesi hilang bila panel ini ditutup.
               </span>
               <button type="button" className="link" onClick={session.forget}>

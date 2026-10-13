@@ -32,6 +32,8 @@ export function useExcelRegister(
   isDialog: boolean,
   flash: (msg: string) => void,
   dialogRef: MutableRefObject<DialogHandle | null>,
+  /** Jendela besar: sidik PDF yang juga terbuka di panel samping. */
+  paneMirror: MutableRefObject<string | null>,
 ): RegisterUi {
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -160,6 +162,11 @@ export function useExcelRegister(
     if (mode === "pane") {
       write(rows, false);
     } else if (mode === "dialog") {
+      if (paneMirror.current === r.pdf.fingerprint) {
+        // PDF yang sama terbuka di panel samping dengan progres yang sama: panel itu yang menulis ke Excel.
+        setStatus({ ok: true, text: "PDF ini juga terbuka di panel samping; panel samping yang menulis ke sheet RA_Register." });
+        return;
+      }
       const chunks = toChunks("register", JSON.stringify(rows), `${Date.now()}`);
       const ok = chunks.every((c) => sendToTaskPane(c));
       setBusy(ok);
@@ -169,7 +176,7 @@ export function useExcelRegister(
           : { ok: false, text: "Gagal mengirim ke panel samping. Pastikan panel samping Report Audit masih terbuka." },
       );
     }
-  }, [mode, write]);
+  }, [mode, write, paneMirror]);
 
   useEffect(() => {
     if (mode === "off" || !r.footing || !r.pdf) return;

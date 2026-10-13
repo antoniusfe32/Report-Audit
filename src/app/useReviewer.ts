@@ -199,6 +199,17 @@ export function useReviewer() {
     setNav((n) => ({ page: p, seq: n.seq + 1 }));
   }, []);
 
+  /**
+   * Terapkan progres dari jendela lain untuk PDF yang sama (halaman tidak diubah: tiap jendela
+   * punya posisi gulir sendiri). Hanya bagian yang berbeda yang diubah.
+   */
+  const applySession = useCallback((st: SessionState) => {
+    setLocale((v) => (v === st.locale ? v : st.locale));
+    setScaleChoice((v) => (v === st.scaleChoice ? v : st.scaleChoice));
+    setFootingOn((v) => (v === st.footingOn ? v : st.footingOn));
+    setOverrides((v) => (JSON.stringify(v) === JSON.stringify(st.overrides) ? v : { ...st.overrides }));
+  }, []);
+
   /** Progres review saat ini (dipindahkan bersama PDF ke/dari jendela besar). */
   const session: SessionState = useMemo(
     () => ({ locale, overrides, scaleChoice, footingOn, page }),
@@ -207,6 +218,7 @@ export function useReviewer() {
 
   return {
     session,
+    applySession,
     pdf,
     tokens,
     viewports,

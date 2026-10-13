@@ -14,3 +14,14 @@ export interface SessionState {
   footingOn: boolean;
   page: number;
 }
+
+/**
+ * Kunci pembanding progres (tanpa halaman: tiap jendela boleh berada di halaman berbeda).
+ * Urutan kunci koreksi manual dinormalkan agar dua isi yang sama selalu menghasilkan kunci yang sama.
+ */
+export function sessionKey(s: SessionState): string {
+  const overrides = Object.keys(s.overrides)
+    .sort()
+    .map((k) => [k, s.overrides[k]]);
+  return JSON.stringify([s.locale, s.scaleChoice, s.footingOn, overrides]);
+}

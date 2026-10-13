@@ -50,8 +50,14 @@ export interface DialogReadyMsg {
   type: "dialog-ready";
 }
 
+/** Panel samping memberi tahu: PDF ini juga terbuka di panel (panel yang menulis register). */
+export interface PaneMirrorMsg {
+  type: "pane-mirror";
+  fingerprint: string | null;
+}
+
 export type ToPaneMessage = SelectionPayload | ChunkMsg | SessionStateMsg | DialogReadyMsg;
-export type ToDialogMessage = RegisterStatusMsg | RegisterPickMsg | ChunkMsg;
+export type ToDialogMessage = RegisterStatusMsg | RegisterPickMsg | ChunkMsg | SessionStateMsg | PaneMirrorMsg;
 
 /** Ukuran per pesan (karakter). Batas resmi tidak didokumentasikan; nilai ini konservatif. */
 export const CHUNK_SIZE = 64_000;

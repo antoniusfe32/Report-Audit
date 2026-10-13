@@ -97,6 +97,8 @@ PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di 
 - [ ] **Tutup lalu buka lagi jendela besar** (panel samping tetap terbuka): PDF, hasil footing, koreksi manual, dan
       halaman terakhir harus kembali tanpa memilih file. Panel samping menampilkan "Sesi tersimpan di panel ini".
 - [ ] Buka PDF di panel samping → klik **Jendela besar ⧉** → PDF yang sama langsung terbuka di jendela besar.
+- [ ] Buka PDF di **jendela besar** → panel samping otomatis membuka PDF yang sama.
+- [ ] Jalankan footing / koreksi manual di salah satu jendela → jendela lain ikut berubah dalam ±1 detik.
 - [ ] Kalau sheet tidak muncul: baca kotak **Register Excel** di panel footing (kuning = tidak terhubung ke Excel,
       merah = pesan error) dan laporkan isinya.
 

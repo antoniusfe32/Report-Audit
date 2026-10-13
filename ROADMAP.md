@@ -40,6 +40,10 @@ Konteks dokumen: draft LK diexport dari Word, **dinyatakan dalam ribuan Rupiah**
 - [ ] Jendela besar: Office tidak mengizinkan add-in me-minimize dialog. Lihat 1.2.
 - [x] Jendela besar ditutup lalu dibuka lagi **tidak perlu memilih PDF lagi**: PDF + progres (koreksi manual, skala,
       footing aktif, halaman) disimpan di memori panel samping dan dikirim kembali (lihat 1.2).
+- [x] PDF yang dibuka di jendela besar **otomatis juga terbuka di panel samping** (dan sebaliknya). Progres
+      (koreksi manual, skala, format angka, footing aktif) disinkronkan dua arah, sehingga pengguna bisa
+      berpindah kerja antara jendela besar dan panel samping. Halaman tidak disinkronkan (posisi gulir masing-masing).
+      Register Excel ditulis oleh panel samping saja bila PDF yang sama terbuka di sana.
 
 ### 1.1 Viewer: scroll terus — kode selesai 13 Okt 2026, **menunggu uji pemilik di Excel**
 - [x] Semua halaman ditampilkan berurutan ke bawah; nomor halaman di toolbar ikut berubah saat scroll.
