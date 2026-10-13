@@ -661,3 +661,11 @@ button.link {
   color: var(--same);
   margin: 4px 0 0;
 }
+.excel-sync.is-off {
+  background: var(--warn-bg);
+  border-color: var(--warn-line);
+}
+.err-text {
+  color: var(--neg);
+  margin: 4px 0 0;
+}
