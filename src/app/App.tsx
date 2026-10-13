@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useReviewer } from "./useReviewer";
+import { useExcelRegister } from "./useExcelRegister";
 import { PdfScrollView } from "../features/viewer/PdfScrollView";
 import { SelectionPanel } from "../features/panel/SelectionPanel";
 import { FootingPanel } from "../features/footing/FootingPanel";
 import { FootingDetail } from "../features/footing/FootingDetail";
+import { footingBlocks, type FootingBlock } from "../domain/footing/blocks";
 import {
   openLargeWindow,
   readyOffice,
@@ -69,20 +71,29 @@ export function App() {
   };
 
   const pageCount = r.pdf?.pageCount ?? 0;
+  const register = useExcelRegister(r, host, !isDialog, flash);
 
   // Sorot susunan footing dari angka terpilih: komponen dari total, atau total + komponen saudaranya.
+  const selectedStatus = r.selected ? r.footing?.byToken.get(r.selected.id) : undefined;
+  const activeFootingId = selectedStatus ? (selectedStatus.footingId ?? selectedStatus.componentOf ?? null) : null;
   const highlight = useMemo(() => {
     const ids = new Set<string>();
-    const st = r.selected && r.footing?.byToken.get(r.selected.id);
-    if (!st || !r.footing) return ids;
-    const fid = st.footingId ?? st.componentOf;
-    const f = r.footing.footings.find((x) => x.id === fid);
+    const f = r.footing?.footings.find((x) => x.id === activeFootingId);
     if (f) {
       ids.add(f.totalId);
       f.componentIds.forEach((id) => ids.add(id));
     }
     return ids;
-  }, [r.selected, r.footing]);
+  }, [r.footing, activeFootingId]);
+
+  // Blok warna footing per halaman (dihitung sekali per hasil footing).
+  const blocks = useMemo(() => {
+    if (!r.footing) return null;
+    const byId = new Map(r.tokens.map((t) => [t.id, t]));
+    const m = new Map<number, FootingBlock[]>();
+    for (let p = 1; p <= pageCount; p++) m.set(p, footingBlocks(r.footing, byId, p));
+    return m;
+  }, [r.footing, r.tokens, pageCount]);
 
   return (
     <div className={`app ${isDialog ? "is-dialog" : "is-pane"}`}>
@@ -215,6 +226,8 @@ export function App() {
               nav={r.nav}
               marks={r.footing?.byToken ?? null}
               highlight={highlight}
+              blocks={blocks}
+              activeFootingId={activeFootingId}
               onSelect={handleSelect}
               onPageChange={r.setPage}
             />
@@ -293,6 +306,11 @@ export function App() {
               onHide={() => r.setFootingOn(false)}
               onScaleChoice={r.setScaleChoice}
               onClearOverrides={r.clearOverrides}
+              excel={
+                register.active
+                  ? { status: register.syncStatus, busy: register.syncing, onSync: register.sync }
+                  : null
+              }
               onPick={(t) => {
                 r.select(t);
                 r.goTo(t);

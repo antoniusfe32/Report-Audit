@@ -12,6 +12,7 @@ import type { PDFDocumentProxy, PageViewport, RenderTask } from "pdfjs-dist";
 import type { NumberToken } from "../../domain/pdf/numberTokens";
 import type { Occurrence, MatchType } from "../../domain/matching/findOccurrences";
 import { formatDiff, type TokenStatus } from "../../domain/footing/verticalFooting";
+import type { FootingBlock } from "../../domain/footing/blocks";
 import { MARK_TEXT } from "../footing/marks";
 import type { NavTarget } from "../../app/useReviewer";
 
@@ -32,6 +33,10 @@ interface Props {
   marks: Map<string, TokenStatus> | null;
   /** Angka yang disorot sebagai komponen dari total terpilih. */
   highlight: Set<string>;
+  /** Blok warna footing per halaman; null = tidak ditampilkan. */
+  blocks: Map<number, FootingBlock[]> | null;
+  /** Footing yang sedang dipilih (bloknya ditebalkan). */
+  activeFootingId: string | null;
   onSelect: (t: NumberToken) => void;
   onPageChange: (page: number) => void;
 }
@@ -185,6 +190,8 @@ export function PdfScrollView(props: Props) {
             focusId={props.focusId}
             marks={props.marks}
             highlight={props.highlight}
+            blocks={props.blocks?.get(i + 1) ?? NO_BLOCKS}
+            activeFootingId={props.activeFootingId}
             onSelect={props.onSelect}
           />
         ))}
@@ -194,6 +201,14 @@ export function PdfScrollView(props: Props) {
 }
 
 const EMPTY: NumberToken[] = [];
+const NO_BLOCKS: FootingBlock[] = [];
+
+const BLOCK_TEXT: Record<FootingBlock["kind"], string> = {
+  component: "Angka yang dijumlahkan",
+  "total-foot": "Total cocok",
+  "total-fail": "Total tidak cocok",
+  "total-open": "Total perlu cek manual",
+};
 
 interface PageProps {
   doc: PDFDocumentProxy;
@@ -206,6 +221,8 @@ interface PageProps {
   focusId: string | null;
   marks: Map<string, TokenStatus> | null;
   highlight: Set<string>;
+  blocks: FootingBlock[];
+  activeFootingId: string | null;
   onSelect: (t: NumberToken) => void;
 }
 
@@ -220,6 +237,8 @@ const PageView = memo(function PageView({
   focusId,
   marks,
   highlight,
+  blocks,
+  activeFootingId,
   onSelect,
 }: PageProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -275,6 +294,23 @@ const PageView = memo(function PageView({
       {!active && <div className="page-placeholder">Hal. {pageNumber}</div>}
       {renderError && <div className="notice error page-error">{renderError}</div>}
       {active &&
+        blocks.map((b, i) => {
+          const [ax, ay] = vp.convertToViewportPoint(b.box.x0, b.box.y0) as number[];
+          const [bx, by] = vp.convertToViewportPoint(b.box.x1, b.box.y1) as number[];
+          const cls = ["fblock", `fk-${b.kind}`];
+          // Ditebalkan: blok footing terpilih + subtotal yang menjadi komponennya.
+          if (b.footingId === activeFootingId || (b.totalId && highlight.has(b.totalId))) cls.push("is-active");
+          return (
+            <div
+              key={`b${i}`}
+              className={cls.join(" ")}
+              style={{ left: Math.min(ax, bx), top: Math.min(ay, by), width: Math.abs(bx - ax), height: Math.abs(by - ay) }}
+              title={BLOCK_TEXT[b.kind]}
+              aria-hidden
+            />
+          );
+        })}
+      {active &&
         tokens.map((t) => {
           const [ax, ay] = vp.convertToViewportPoint(t.box.x0, t.box.y0) as number[];
           const [bx, by] = vp.convertToViewportPoint(t.box.x1, t.box.y1) as number[];
@@ -289,7 +325,9 @@ const PageView = memo(function PageView({
           if (match) classes.push(`is-${match}`);
           if (t.id === focusId) classes.push("is-focus");
           if (t.parsed.ambiguous) classes.push("is-ambiguous");
-          if (st) classes.push(`fm-${st.mark}`);
+          // Komponen sudah terlihat dari blok biru; tanda ○ hanya untuk angka yang belum tercakup.
+          const inBlock = !!st?.componentOf && !st.footingId;
+          if (st && !inBlock) classes.push(`fm-${st.mark}`);
           if (highlight.has(t.id)) classes.push("is-component");
           const base =
             t.id === selectedId
@@ -311,7 +349,7 @@ const PageView = memo(function PageView({
                 aria-label={`${t.text}, ${t.label || "tanpa label"}${st ? `, ${MARK_TEXT[st.mark]}` : ""}`}
                 onClick={() => onSelect(t)}
               />
-              {st && (
+              {st && !inBlock && (
                 <span
                   className={`fbadge fb-${st.mark}`}
                   style={{ left: left + width + 2, top, height, fontSize: Math.max(9, height * 0.72) }}

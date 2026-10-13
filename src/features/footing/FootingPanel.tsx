@@ -22,6 +22,8 @@ interface Props {
   onScaleChoice: (s: ScaleChoice) => void;
   onClearOverrides: () => void;
   onPick: (t: NumberToken) => void;
+  /** Register Excel; null di luar Excel (mode pratinjau browser / jendela besar). */
+  excel: { status: string | null; busy: boolean; onSync: () => void } | null;
 }
 
 const SCALES: Scale[] = ["penuh", "ribuan", "jutaan", "miliaran"];
@@ -94,6 +96,23 @@ export function FootingPanel(p: Props) {
       )}
 
       {p.footingOn && !p.footing && <p className="small muted">Membaca garis tabel…</p>}
+      {p.footing && p.excel && (
+        <div className="excel-sync">
+          <p className="small">
+            Semua hasil footing (F, ✗, ○) otomatis masuk ke sheet <strong>RA_Register</strong>. Klik baris di sheet
+            itu untuk menyorot angkanya di PDF. Kolom Komentar tidak ditimpa.
+          </p>
+          <div className="actions-row">
+            <button type="button" onClick={p.excel.onSync} disabled={p.excel.busy}>
+              {p.excel.busy ? "Menulis ke Excel…" : "Kirim ulang ke Excel"}
+            </button>
+          </div>
+          {p.excel.status && <p className="small ok-text">{p.excel.status}</p>}
+        </div>
+      )}
+      {p.footing && !p.excel && (
+        <p className="small muted">Di dalam Excel, hasil footing otomatis masuk ke sheet RA_Register.</p>
+      )}
       {p.footing && <Results footing={p.footing} byId={byId} onPick={p.onPick} />}
     </section>
   );

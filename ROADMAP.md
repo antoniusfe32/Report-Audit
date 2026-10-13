@@ -31,6 +31,14 @@ Konteks dokumen: draft LK diexport dari Word, **dinyatakan dalam ribuan Rupiah**
       ("tanda berlawanan"), tidak lagi diperlakukan sebagai peringatan merah. Desimal tetap dibedakan.
 - [ ] Sum snip (1.4) belum ada — urutan berikutnya menunggu keputusan pemilik.
 
+### Keputusan pemilik (13 Okt 2026, setelah uji draft asli)
+- [x] Tampilan footing memakai **blok warna utuh**: biru muda = angka yang dijumlahkan (satu blok per rangkaian),
+      hijau = total cocok, merah = total selisih, abu-abu = total perlu cek manual. Simbol F / ✗ / ○ tetap ada.
+- [x] Register Excel (1.5) dikerjakan lebih dulu, dengan perubahan: **semua** hasil footing (termasuk F) masuk ke
+      `RA_Register` secara otomatis setiap footing dijalankan/dikoreksi; klik baris register → viewer menyorot
+      total + komponennya. Komentar reviewer tidak ditimpa; footing yang hilang setelah koreksi → "tidak berlaku".
+- [ ] Jendela besar: Office tidak mengizinkan add-in me-minimize dialog. Lihat 1.2.
+
 ### 1.1 Viewer: scroll terus — kode selesai 13 Okt 2026, **menunggu uji pemilik di Excel**
 - [x] Semua halaman ditampilkan berurutan ke bawah; nomor halaman di toolbar ikut berubah saat scroll.
 - [x] Hanya halaman yang terlihat (± 1 halaman) yang dirender ke canvas, agar PDF 80+ halaman tetap ringan.
@@ -88,15 +96,16 @@ Status 13 Okt 2026: **footing vertikal** selesai di kode (menunggu uji pemilik d
 - [ ] Tombol **Kirim ke Excel**: tulis hasil SUM ke sel aktif + catat ke `RA_Register` (lihat 1.5).
 - [ ] Sum snip juga berfungsi sebagai alat koreksi bila auto footing salah membaca tabel.
 
-### 1.5 Register Excel + klik Excel → sorot di PDF
-- [ ] Tabel Excel terstruktur **`RA_Register`** (sheet `RA_Register`, dibuat otomatis bila belum ada; tidak
+### 1.5 Register Excel + klik Excel → sorot di PDF — footing selesai di kode 13 Okt 2026, **belum diuji di Excel**
+- [x] Tabel Excel terstruktur **`RA_Register`** (sheet `RA_Register`, dibuat otomatis bila belum ada; tidak
       menimpa data lain). Kolom terlihat: ID, Jenis (Footing/Cross footing/Sum snip/Tie), Halaman, Label, Nilai
       dilaporkan, Nilai hitung, Selisih, Status, Komentar, Sidik dokumen (singkat). Kolom tersembunyi: lokasi
       (halaman + kotak koordinat PDF semua angka yang terlibat, JSON).
-- [ ] Hasil auto footing yang ✗ dan ○, sum snip, dan tie yang dikonfirmasi masuk ke register.
+- [ ] Hasil auto footing ~~yang ✗ dan ○~~ **semua (F, ✗, ○)** ✅, sum snip ⏳, dan tie yang dikonfirmasi ⏳ masuk ke register.
 - [ ] Task pane memasang listener `onSelectionChanged`; saat pengguna mengklik baris register → viewer
-      (task pane atau jendela besar via `messageChild`) loncat ke halaman dan **menyorot semua angka** yang terlibat.
-- [ ] PDF **tidak** disimpan di workbook (kerahasiaan & ukuran file). Membuka ulang workbook → pengguna membuka
+      (task pane ✅ atau jendela besar via `messageChild` ⏳ bersama 1.2) loncat ke halaman dan **menyorot semua angka**
+      yang terlibat.
+- [x] PDF **tidak** disimpan di workbook (kerahasiaan & ukuran file). Membuka ulang workbook → pengguna membuka
       PDF yang sama; bila sidik SHA-256 berbeda dari register → peringatan "versi draft berbeda, lokasi mungkin
       bergeser". (Berbeda dari DataSnipper yang menyimpan dokumen di workbook — keputusan sadar.)
 
