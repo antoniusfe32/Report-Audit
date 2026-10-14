@@ -7,7 +7,7 @@ import { PdfScrollView } from "../features/viewer/PdfScrollView";
 import { SelectionPanel } from "../features/panel/SelectionPanel";
 import { FootingPanel } from "../features/footing/FootingPanel";
 import { FootingDetail } from "../features/footing/FootingDetail";
-import { footingBlocks, type FootingBlock } from "../domain/footing/blocks";
+import { crossRowBlock, footingBlocks, type FootingBlock } from "../domain/footing/blocks";
 import { pageDiagnostics } from "../domain/footing/diagnostics";
 import { evaluateSnip, orientationOf, selectTokens, suggestTotal, type Snip } from "../domain/snip/sumSnip";
 import { formatAmount } from "../domain/parsing/parseAmount";
@@ -211,14 +211,32 @@ export function App() {
     return ids;
   }, [r.footing, activeFootingId]);
 
+  // Cross footing horizontal: per total baris, dan baris yang sedang dipilih.
+  const crossByTotal = useMemo(
+    () => (r.footing ? new Map(r.footing.cross.map((c) => [c.totalId, c])) : null),
+    [r.footing],
+  );
+  const activeCross = useMemo(() => {
+    if (!r.selected || !r.footing) return null;
+    const id = r.selected.id;
+    return r.footing.cross.find((c) => c.totalId === id) ?? r.footing.cross.find((c) => c.componentIds.includes(id)) ?? null;
+  }, [r.selected, r.footing]);
+
   // Blok warna footing per halaman (dihitung sekali per hasil footing).
-  const blocks = useMemo(() => {
+  const baseBlocks = useMemo(() => {
     if (!r.footing) return null;
-    const byId = new Map(r.tokens.map((t) => [t.id, t]));
     const m = new Map<number, FootingBlock[]>();
-    for (let p = 1; p <= pageCount; p++) m.set(p, footingBlocks(r.footing, byId, p));
+    for (let p = 1; p <= pageCount; p++) m.set(p, footingBlocks(r.footing, tokensById, p));
     return m;
-  }, [r.footing, r.tokens, pageCount]);
+  }, [r.footing, tokensById, pageCount]);
+  const blocks = useMemo(() => {
+    if (!baseBlocks || !activeCross) return baseBlocks;
+    const row = crossRowBlock(activeCross, tokensById);
+    if (!row) return baseBlocks;
+    const m = new Map(baseBlocks);
+    m.set(activeCross.page, [...(m.get(activeCross.page) ?? []), row]);
+    return m;
+  }, [baseBlocks, activeCross, tokensById]);
 
   return (
     <div className={`app ${isDialog ? "is-dialog" : "is-pane"}`}>
@@ -380,7 +398,8 @@ export function App() {
               marks={r.footing?.byToken ?? null}
               highlight={highlight}
               blocks={blocks}
-              activeFootingId={activeFootingId}
+              activeFootingId={activeCross && !activeFootingId ? activeCross.id : activeFootingId}
+              crossByTotal={crossByTotal}
               snipMode={snipMode}
               onSnipBox={onSnipBox}
               snipShapes={snipShapes}

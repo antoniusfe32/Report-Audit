@@ -54,7 +54,7 @@ export const STALE_STATUS = "tidak berlaku";
 /** Sum snip tanpa total pembanding: hanya jumlah. */
 export const SUM_ONLY_STATUS = "Σ jumlah";
 /** Jenis baris yang dikelola otomatis oleh aplikasi (boleh diberi status "tidak berlaku"). */
-export const MANAGED_TYPES = ["Footing", "Sum snip"];
+export const MANAGED_TYPES = ["Footing", "Cross footing", "Sum snip"];
 
 /** Lokasi angka yang terlibat, disimpan sebagai JSON di kolom tersembunyi. */
 export interface RegisterLocation {
@@ -154,14 +154,52 @@ export function snipRows(evals: SnipEvaluation[], fingerprint: string): Register
     });
 }
 
-/** Semua baris register untuk dokumen ini: footing otomatis (bila dijalankan) + semua sum snip. */
+/** Baris register untuk setiap cross footing horizontal (yang berasal dari sum snip dicatat oleh snipRows). */
+export function crossRows(result: FootingResult, tokens: NumberToken[], fingerprint: string): RegisterRow[] {
+  const byId = new Map(tokens.map((t) => [t.id, t]));
+  const rows: RegisterRow[] = [];
+  for (const c of result.cross) {
+    if (c.snipId) continue;
+    const total = byId.get(c.totalId);
+    if (!total) continue;
+    const involved = [total, ...c.componentIds.map((id) => byId.get(id)).filter((t): t is NumberToken => !!t)];
+    const loc: RegisterLocation = {
+      v: 1,
+      doc: fingerprint,
+      page: c.page,
+      focus: total.id,
+      ids: involved.map((t) => t.id),
+      boxes: involved.map(boxOf),
+    };
+    const row: RegisterRow = [];
+    row[COL.id] = `X-${total.id}`;
+    row[COL.type] = "Cross footing";
+    row[COL.page] = c.page;
+    row[COL.label] = `${total.label || "(tanpa label)"} → ${c.header}`;
+    row[COL.reported] = c.reported;
+    row[COL.computed] = c.computed;
+    row[COL.difference] = c.difference;
+    row[COL.status] = STATUS_TEXT[c.status];
+    row[COL.comment] = "";
+    row[COL.fingerprint] = shortFingerprint(fingerprint);
+    row[COL.location] = JSON.stringify(loc);
+    rows.push(row);
+  }
+  return rows;
+}
+
+/** Semua baris register untuk dokumen ini: footing & cross footing (bila dijalankan) + semua sum snip. */
 export function registerRows(
   footing: FootingResult | null,
   snips: SnipEvaluation[],
   tokens: NumberToken[],
   fingerprint: string,
 ): RegisterRow[] {
-  return [...(footing ? footingRows(footing, tokens, fingerprint) : []), ...snipRows(snips, fingerprint)];
+  return [
+    ...(footing ? footingRows(footing, tokens, fingerprint) : []),
+    ...(footing ? crossRows(footing, tokens, fingerprint) : []),
+    ...snipRows(snips, fingerprint),
+  ];
 }
 
 export interface RegisterPlan {

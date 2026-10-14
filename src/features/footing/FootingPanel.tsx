@@ -141,8 +141,31 @@ function Results({
           ✓ <strong>{summary.check}</strong>
         </span>
       </div>
+      {footing.cross.length > 0 && (
+        <div className="fsummary" aria-label="Ringkasan cross footing">
+          <span className="small muted">Cross footing baris:</span>
+          <span className="chip fb-foot" title="Baris tabel mutasi/segmen yang cocok">
+            ⇆F <strong>{summary.crossFoot}</strong>
+          </span>
+          <span className="chip fb-fail" title="Baris tabel mutasi/segmen dengan selisih ≠ 0">
+            ⇆✗ <strong>{summary.crossFail}</strong>
+          </span>
+        </div>
+      )}
 
       <FootingList title="Total tidak cocok" items={fails} byId={byId} onPick={onPick} empty="Tidak ada." />
+      {footing.cross.length > 0 && (
+        <FootingList
+          title="Baris tidak cocok (cross footing)"
+          items={footing.cross
+            .filter((c) => c.status !== "foot")
+            .map((c) => ({ ...c, basis: [] as Footing["basis"] }))}
+          byId={byId}
+          onPick={onPick}
+          empty="Tidak ada."
+          showReason
+        />
+      )}
       <FootingList
         title="Total perlu cek manual"
         items={opens}

@@ -8,7 +8,7 @@
 import type { NumberToken, PdfBox } from "../pdf/numberTokens";
 import type { Footing, FootingResult } from "./verticalFooting";
 
-export type BlockKind = "component" | "total-foot" | "total-fail" | "total-open";
+export type BlockKind = "component" | "total-foot" | "total-fail" | "total-open" | "cross-row";
 
 export interface FootingBlock {
   footingId: string;
@@ -90,4 +90,23 @@ export function footingBlocks(result: FootingResult, tokensById: Map<string, Num
     });
   }
   return blocks;
+}
+
+/** Garis bingkai satu baris cross footing (dipakai saat baris itu dipilih). */
+export function crossRowBlock(
+  cross: { id: string; totalId: string; componentIds: string[] },
+  tokensById: Map<string, NumberToken>,
+): FootingBlock | null {
+  const toks = [cross.totalId, ...cross.componentIds].map((id) => tokensById.get(id)).filter((t): t is NumberToken => !!t);
+  if (!toks.length) return null;
+  return {
+    footingId: cross.id,
+    kind: "cross-row",
+    box: {
+      x0: Math.min(...toks.map((t) => t.box.x0)) - PAD_X * 2,
+      x1: Math.max(...toks.map((t) => t.box.x1)) + PAD_X * 2,
+      y0: Math.min(...toks.map((t) => t.box.y0)) - PAD_Y * 2,
+      y1: Math.max(...toks.map((t) => t.box.y1)) + PAD_Y * 2,
+    },
+  };
 }

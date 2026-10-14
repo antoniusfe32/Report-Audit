@@ -12,6 +12,7 @@ import type { PDFDocumentProxy, PageViewport, RenderTask } from "pdfjs-dist";
 import type { NumberToken } from "../../domain/pdf/numberTokens";
 import type { Occurrence, MatchType } from "../../domain/matching/findOccurrences";
 import { formatDiff, type TokenStatus } from "../../domain/footing/verticalFooting";
+import type { CrossFooting } from "../../domain/footing/crossFooting";
 import type { FootingBlock } from "../../domain/footing/blocks";
 import type { PdfBox } from "../../domain/pdf/numberTokens";
 import { normalizeBox } from "../../domain/snip/sumSnip";
@@ -50,6 +51,8 @@ interface Props {
   blocks: Map<number, FootingBlock[]> | null;
   /** Footing yang sedang dipilih (bloknya ditebalkan). */
   activeFootingId: string | null;
+  /** Cross footing horizontal per angka total baris. */
+  crossByTotal: Map<string, CrossFooting> | null;
   /** Mode sum snip: tarik kotak di halaman. */
   snipMode: boolean;
   onSnipBox: (page: number, box: PdfBox) => void;
@@ -209,6 +212,7 @@ export function PdfScrollView(props: Props) {
             highlight={props.highlight}
             blocks={props.blocks?.get(i + 1) ?? NO_BLOCKS}
             activeFootingId={props.activeFootingId}
+            crossByTotal={props.crossByTotal}
             snipMode={props.snipMode}
             onSnipBox={props.onSnipBox}
             snipShapes={props.snipShapes.get(i + 1) ?? NO_SHAPES}
@@ -229,6 +233,7 @@ const BLOCK_TEXT: Record<FootingBlock["kind"], string> = {
   "total-foot": "Total cocok",
   "total-fail": "Total tidak cocok",
   "total-open": "Total perlu cek manual",
+  "cross-row": "Baris cross footing terpilih",
 };
 
 interface PageProps {
@@ -244,6 +249,7 @@ interface PageProps {
   highlight: Set<string>;
   blocks: FootingBlock[];
   activeFootingId: string | null;
+  crossByTotal: Map<string, CrossFooting> | null;
   snipMode: boolean;
   onSnipBox: (page: number, box: PdfBox) => void;
   snipShapes: SnipShape[];
@@ -263,6 +269,7 @@ const PageView = memo(function PageView({
   highlight,
   blocks,
   activeFootingId,
+  crossByTotal,
   snipMode,
   onSnipBox,
   snipShapes,
@@ -392,7 +399,15 @@ const PageView = memo(function PageView({
                 : match === "sign-mismatch"
                   ? "Angka sama, tanda berlawanan"
                   : `Klik untuk memilih ${t.text}`;
-          const title = st ? `${base}\n${MARK_TEXT[st.mark]}\n${st.reason}` : base;
+          const cx = crossByTotal?.get(t.id);
+          let title = st ? `${base}\n${MARK_TEXT[st.mark]}\n${st.reason}` : base;
+          if (cx) {
+            title += `\n⇆ Cross footing baris (kolom "${cx.header}"): ${crossText(cx)}${cx.reason ? `. ${cx.reason}` : ""}`;
+          }
+          // Tanda vertikal (bila angka ini memang total/komponen vertikal) + tanda cross footing baris.
+          const vertical = st && !inBlock && !(cx && !st.footingId) ? badgeText(st) : null;
+          const badge = [vertical, cx ? `⇆${crossShort(cx)}` : null].filter(Boolean).join(" ");
+          const badgeMark = cx?.status === "fail" || st?.mark === "fail" ? "fail" : (st?.mark ?? (cx?.status === "foot" ? "foot" : "open"));
           return (
             <span key={t.id} className="num-wrap">
               <button
@@ -404,13 +419,13 @@ const PageView = memo(function PageView({
                 aria-label={`${t.text}, ${t.label || "tanpa label"}${st ? `, ${MARK_TEXT[st.mark]}` : ""}`}
                 onClick={() => onSelect(t)}
               />
-              {st && !inBlock && (
+              {badge && (
                 <span
-                  className={`fbadge fb-${st.mark}`}
+                  className={`fbadge fb-${badgeMark}`}
                   style={{ left: left + width + 2, top, height, fontSize: Math.max(9, height * 0.72) }}
                   aria-hidden
                 >
-                  {badgeText(st)}
+                  {badge}
                 </span>
               )}
             </span>
@@ -469,4 +484,16 @@ function badgeText(st: TokenStatus): string {
     case "open":
       return "○";
   }
+}
+
+function crossShort(c: CrossFooting): string {
+  return c.status === "foot" ? "F" : c.status === "fail" ? `✗ ${formatDiff(c.difference)}` : "○";
+}
+
+function crossText(c: CrossFooting): string {
+  return c.status === "foot"
+    ? "cocok (selisih 0)"
+    : c.status === "fail"
+      ? `selisih ${formatDiff(c.difference)}`
+      : "perlu cek manual";
 }

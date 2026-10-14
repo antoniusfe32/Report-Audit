@@ -781,3 +781,11 @@ button.link {
 .override-list .occ .tag {
   grid-column: 2 / 4;
 }
+
+/* cross footing: bingkai baris terpilih */
+.fblock.fk-cross-row {
+  background: transparent;
+  mix-blend-mode: normal;
+  outline: 2px dashed var(--accent);
+  outline-offset: 1px;
+}

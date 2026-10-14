@@ -22,6 +22,7 @@ import type { NumberToken, RawTextItem } from "../pdf/numberTokens";
 import type { HRule } from "../pdf/rules";
 import type { Scale } from "./scale";
 import { evaluateSnip, type Snip } from "../snip/sumSnip";
+import { computeCrossFooting, type CrossFooting } from "./crossFooting";
 
 /** Koreksi manual pengguna untuk satu angka. */
 export type Override = "total" | "not-total" | "exclude";
@@ -60,6 +61,9 @@ export interface TokenStatus {
 }
 
 export interface FootingSummary {
+  /** Cross footing horizontal yang cocok / tidak cocok. */
+  crossFoot: number;
+  crossFail: number;
   foot: number;
   fail: number;
   /** Total yang tidak bisa disimpulkan (perlu cek manual). */
@@ -71,6 +75,8 @@ export interface FootingSummary {
 
 export interface FootingResult {
   footings: Footing[];
+  /** Cross footing horizontal (tabel mutasi/segmen). */
+  cross: CrossFooting[];
   byToken: Map<string, TokenStatus>;
   summary: FootingSummary;
 }
@@ -410,7 +416,7 @@ export function computeVerticalFooting(input: FootingInput): FootingResult {
   for (const snip of input.snips ?? []) {
     if (!snip.totalId) continue;
     const ev = evaluateSnip(snip, tokenById, !!(input.scales[snip.page - 1] ?? null));
-    if (!ev.total) continue;
+    if (!ev.total || ev.orientation === "horizontal") continue; // snip horizontal → cross footing
     for (let i = footings.length - 1; i >= 0; i--) if (footings[i].totalId === snip.totalId) footings.splice(i, 1);
     // Diletakkan di akhir: tanda komponennya menimpa tanda dari footing otomatis.
     footings.push({
@@ -463,11 +469,38 @@ export function computeVerticalFooting(input: FootingInput): FootingResult {
     }
   }
 
+  // ---------------- Cross footing horizontal ----------------
+  const cross = computeCrossFooting(input);
+  // Angka yang tidak tercakup footing vertikal mendapat tanda dari cross footing barisnya.
+  const uncovered = (id: string) => {
+    const st = byToken.get(id);
+    return !st || (st.mark === "open" && !st.footingId && !st.componentOf && overrides[id] !== "exclude");
+  };
+  for (const c of cross) {
+    const total = tokenById.get(c.totalId);
+    if (!total) continue;
+    if (uncovered(c.totalId)) {
+      const mark: Mark = c.status === "foot" ? "foot" : c.status === "fail" ? "fail" : "open";
+      byToken.set(c.totalId, {
+        mark,
+        reason: `Total baris (cross footing, kolom "${c.header}"), selisih ${formatDiff(c.difference)}.${c.reason ? ` ${c.reason}` : ""}`,
+        difference: c.difference,
+      });
+    }
+    if (c.status !== "foot") continue;
+    for (const id of c.componentIds) {
+      if (uncovered(id)) byToken.set(id, { mark: "check", reason: `Komponen cross footing baris ${describe(total)} — cocok.` });
+    }
+  }
+
   const marks = [...byToken.values()];
   return {
     footings,
+    cross,
     byToken,
     summary: {
+      crossFoot: cross.filter((c) => c.status === "foot").length,
+      crossFail: cross.filter((c) => c.status === "fail").length,
       foot: footings.filter((f) => f.status === "foot").length,
       fail: footings.filter((f) => f.status === "fail").length,
       openTotals: footings.filter((f) => f.status === "open").length,

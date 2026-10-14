@@ -29,6 +29,9 @@ export function FootingDetail({ token, footing, tokens, override, locale, onOver
   const parent = st?.componentOf ? footing.footings.find((f) => f.id === st.componentOf) : undefined;
   const byId = new Map(tokens.map((t) => [t.id, t]));
   const parentToken = parent ? byId.get(parent.totalId) : undefined;
+  const cross = footing.cross.find((c) => c.totalId === token.id);
+  const crossParent = cross ? undefined : footing.cross.find((c) => c.componentIds.includes(token.id));
+  const crossParentToken = crossParent ? byId.get(crossParent.totalId) : undefined;
 
   return (
     <div className="footing-detail">
@@ -77,6 +80,44 @@ export function FootingDetail({ token, footing, tokens, override, locale, onOver
           <button type="button" className="link" onClick={() => onGoTo(parentToken)}>
             {parentToken.label || "(tanpa label)"} {parentToken.text}
           </button>
+        </p>
+      )}
+
+      {cross && (
+        <>
+          <h3>⇆ Cross footing baris (kolom "{cross.header}")</h3>
+          <table className="ftable">
+            <tbody>
+              {cross.componentIds.map((id) => {
+                const c = byId.get(id);
+                if (!c) return null;
+                return (
+                  <tr key={id} onClick={() => onGoTo(c)} title="Klik untuk menuju angka ini">
+                    <td>{cross.subtractedIds.includes(id) ? "dikurangkan" : ""}</td>
+                    <td className="mono num-cell">{c.text}</td>
+                  </tr>
+                );
+              })}
+              <tr className="sum">
+                <td>Jumlah hitung</td>
+                <td className="mono num-cell">{formatAmount(cross.computed, locale)}</td>
+              </tr>
+              <tr className={cross.difference === 0 ? "ok" : "bad"}>
+                <td>Selisih</td>
+                <td className="mono num-cell">{formatDiff(cross.difference)}</td>
+              </tr>
+            </tbody>
+          </table>
+          {cross.reason && <p className="small muted">{cross.reason}</p>}
+        </>
+      )}
+      {crossParentToken && crossParent && (
+        <p className="small">
+          ⇆ Komponen baris dengan total{" "}
+          <button type="button" className="link" onClick={() => onGoTo(crossParentToken)}>
+            {crossParentToken.text}
+          </button>{" "}
+          ({crossParent.status === "foot" ? "cocok" : crossParent.status === "fail" ? `selisih ${formatDiff(crossParent.difference)}` : "cek manual"})
         </p>
       )}
 
