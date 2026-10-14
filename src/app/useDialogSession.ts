@@ -51,6 +51,7 @@ const DEFAULT_STATE: SessionState = {
   footingOn: false,
   page: 1,
   snips: [],
+  ties: [],
 };
 
 export function useDialogSession(

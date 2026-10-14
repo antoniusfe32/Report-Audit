@@ -6,6 +6,7 @@ import type { NumberLocale } from "../domain/parsing/parseAmount";
 import type { Overrides } from "../domain/footing/verticalFooting";
 import type { Scale } from "../domain/footing/scale";
 import type { Snip } from "../domain/snip/sumSnip";
+import type { Tie } from "../domain/tie/ties";
 
 export interface SessionState {
   locale: NumberLocale;
@@ -16,6 +17,8 @@ export interface SessionState {
   page: number;
   /** Sum snip yang disimpan pengguna (koreksi + register). */
   snips: Snip[];
+  /** Tie yang dikonfirmasi reviewer. */
+  ties: Tie[];
 }
 
 /**
@@ -27,5 +30,6 @@ export function sessionKey(s: SessionState): string {
     .sort()
     .map((k) => [k, s.overrides[k]]);
   const snips = (s.snips ?? []).map((x) => [x.id, x.totalId, x.tokenIds]);
-  return JSON.stringify([s.locale, s.scaleChoice, s.footingOn, overrides, snips]);
+  const ties = (s.ties ?? []).map((t) => t.id).sort();
+  return JSON.stringify([s.locale, s.scaleChoice, s.footingOn, overrides, snips, ties]);
 }

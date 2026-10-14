@@ -13,6 +13,7 @@ import {
   REGISTER_TABLE,
   STALE_STATUS,
   SUM_ONLY_STATUS,
+  TIE_STATUS,
   parseLocation,
   planRegisterUpdate,
   type Cell,
@@ -27,6 +28,8 @@ const STATUS_FILL: Record<string, string> = {
   "○ cek manual": "#E7E6E6",
   [STALE_STATUS]: "#FFFFFF",
   [SUM_ONLY_STATUS]: "#E4DFEC",
+  [TIE_STATUS]: "#DDEBF7",
+  [`${TIE_STATUS} (tanda berlawanan)`]: "#DDEBF7",
 };
 
 export interface RegisterSyncResult {

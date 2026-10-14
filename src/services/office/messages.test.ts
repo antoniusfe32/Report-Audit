@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ChunkAssembler, base64ToBytes, bytesToBase64, parseMessage, toChunks } from "./messages";
 
-const STATE = { locale: "id" as const, overrides: { "p1-i3-c0": "exclude" as const }, scaleChoice: "auto" as const, footingOn: true, page: 4, snips: [] };
+const STATE = { locale: "id" as const, overrides: { "p1-i3-c0": "exclude" as const }, scaleChoice: "auto" as const, footingOn: true, page: 4, snips: [], ties: [] };
 
 describe("pesan jendela besar ↔ panel samping", () => {
   it("data besar dipotong lalu disusun kembali utuh, urutan kedatangan bebas", () => {

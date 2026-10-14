@@ -78,7 +78,7 @@ Direproduksi dengan PDF tiruan (struktur sama, angka fiktif): `samples/contoh-la
 ### 1.3 Auto footing & cross footing (satu tombol untuk seluruh dokumen)
 Aturan keras: **toleransi 0.** Tidak ada status "hampir cocok". Selisih 1 = gagal.
 
-Status 13 Okt 2026: **footing vertikal** selesai di kode (menunggu uji pemilik di Excel); cross footing berikutnya.
+Status 14 Okt 2026: footing vertikal ✅ (diuji pemilik), cross footing horizontal ✅ di kode (belum diuji di Excel).
 
 - [x] Bangun struktur tabel dari posisi token: **kolom** = angka dengan tepi kanan rata vertikal.
       Kolom dipecah menjadi tabel baru bila ada teks/tahun melintang di atas kolom (judul kolom, paragraf).
@@ -89,8 +89,11 @@ Status 13 Okt 2026: **footing vertikal** selesai di kode (menunggu uji pemilik d
 - [x] Footing vertikal: total = jumlah angka langsung di atasnya sejak total/garis sebelumnya; mendukung
       bertingkat (Jumlah aset lancar + Jumlah aset tidak lancar = JUMLAH ASET) dan subtotal berjalan
       (laba bruto + beban = laba sebelum pajak). Kurung = negatif. Semua angka biasa sejak total sebelumnya wajib ikut.
-- [ ] Cross footing horizontal untuk tabel bertotal kolom: **mutasi ekuitas**, **mutasi aset tetap / aset hak
+- [x] Cross footing horizontal untuk tabel bertotal kolom: **mutasi ekuitas**, **mutasi aset tetap / aset hak
       guna**, tabel segmen (saldo awal + penambahan − pengurangan = saldo akhir). Tabel mutasi dicek dua arah.
+      ✅ 14 Okt 2026 (belum diuji di Excel). Baris dicek bila ≥ 3 kolom angka dan judul kolom kanan bertotal
+      ("Jumlah", "Saldo akhir", "31 Desember", "Nilai tercatat"); tabel komparatif beberapa tanggal dilewati.
+      Kolom "Pengurangan" tanpa kurung → dikurangkan dengan keterangan. Badge "⇆F / ⇆✗ n".
 - [x] Status per angka (warna + simbol + tooltip, tidak hanya warna):
       | Tanda | Arti |
       |---|---|
@@ -127,7 +130,8 @@ Status 13 Okt 2026: **footing vertikal** selesai di kode (menunggu uji pemilik d
       menimpa data lain). Kolom terlihat: ID, Jenis (Footing/Cross footing/Sum snip/Tie), Halaman, Label, Nilai
       dilaporkan, Nilai hitung, Selisih, Status, Komentar, Sidik dokumen (singkat). Kolom tersembunyi: lokasi
       (halaman + kotak koordinat PDF semua angka yang terlibat, JSON).
-- [ ] Hasil auto footing ~~yang ✗ dan ○~~ **semua (F, ✗, ○)** ✅, sum snip ✅, dan tie yang dikonfirmasi ⏳ masuk ke register.
+- [x] Hasil auto footing ~~yang ✗ dan ○~~ **semua (F, ✗, ○)** ✅, cross footing ✅, sum snip ✅, dan tie yang
+      dikonfirmasi ✅ (tombol **✓ Tie** di daftar "Lokasi lain dengan angka sama"; tanda ⇄ di PDF) masuk ke register.
 - [ ] Task pane memasang listener `onSelectionChanged`; saat pengguna mengklik baris register → viewer
       (task pane ✅ atau jendela besar via `messageChild` ⏳ bersama 1.2) loncat ke halaman dan **menyorot semua angka**
       yang terlibat.

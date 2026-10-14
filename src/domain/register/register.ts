@@ -10,6 +10,7 @@
 import type { NumberToken, PdfBox } from "../pdf/numberTokens";
 import type { Footing, FootingResult } from "../footing/verticalFooting";
 import type { SnipEvaluation } from "../snip/sumSnip";
+import type { TieEvaluation } from "../tie/ties";
 
 export const REGISTER_SHEET = "RA_Register";
 export const REGISTER_TABLE = "RA_Register";
@@ -54,7 +55,8 @@ export const STALE_STATUS = "tidak berlaku";
 /** Sum snip tanpa total pembanding: hanya jumlah. */
 export const SUM_ONLY_STATUS = "Σ jumlah";
 /** Jenis baris yang dikelola otomatis oleh aplikasi (boleh diberi status "tidak berlaku"). */
-export const MANAGED_TYPES = ["Footing", "Cross footing", "Sum snip"];
+export const MANAGED_TYPES = ["Footing", "Cross footing", "Sum snip", "Tie"];
+export const TIE_STATUS = "Tie ✓";
 
 /** Lokasi angka yang terlibat, disimpan sebagai JSON di kolom tersembunyi. */
 export interface RegisterLocation {
@@ -188,17 +190,48 @@ export function crossRows(result: FootingResult, tokens: NumberToken[], fingerpr
   return rows;
 }
 
-/** Semua baris register untuk dokumen ini: footing & cross footing (bila dijalankan) + semua sum snip. */
+/** Baris register untuk setiap tie yang dikonfirmasi reviewer. */
+export function tieRows(ties: TieEvaluation[], fingerprint: string): RegisterRow[] {
+  return ties.flatMap((ev) => {
+    const { a, b } = ev;
+    if (!a || !b) return [];
+    const loc: RegisterLocation = {
+      v: 1,
+      doc: fingerprint,
+      page: a.page,
+      focus: a.id,
+      ids: [a.id, b.id],
+      boxes: [boxOf(a), boxOf(b)],
+    };
+    const row: RegisterRow = [];
+    row[COL.id] = `T-${ev.tie.id}`;
+    row[COL.type] = "Tie";
+    row[COL.page] = a.page;
+    row[COL.label] = `${a.label || "(tanpa label)"} (hal. ${a.page}) ⇄ ${b.label || "(tanpa label)"} (hal. ${b.page})`;
+    row[COL.reported] = a.parsed.value ?? "";
+    row[COL.computed] = b.parsed.value ?? "";
+    row[COL.difference] = ev.difference ?? "";
+    row[COL.status] = ev.signDiffers ? `${TIE_STATUS} (tanda berlawanan)` : TIE_STATUS;
+    row[COL.comment] = "";
+    row[COL.fingerprint] = shortFingerprint(fingerprint);
+    row[COL.location] = JSON.stringify(loc);
+    return [row];
+  });
+}
+
+/** Semua baris register untuk dokumen ini: footing & cross footing (bila dijalankan), sum snip, tie. */
 export function registerRows(
   footing: FootingResult | null,
   snips: SnipEvaluation[],
   tokens: NumberToken[],
   fingerprint: string,
+  ties: TieEvaluation[] = [],
 ): RegisterRow[] {
   return [
     ...(footing ? footingRows(footing, tokens, fingerprint) : []),
     ...(footing ? crossRows(footing, tokens, fingerprint) : []),
     ...snipRows(snips, fingerprint),
+    ...tieRows(ties, fingerprint),
   ];
 }
 

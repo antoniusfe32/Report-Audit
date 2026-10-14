@@ -789,3 +789,16 @@ button.link {
   outline: 2px dashed var(--accent);
   outline-offset: 1px;
 }
+
+/* tie dikonfirmasi */
+.tag.tie {
+  background: #e4dfec;
+  color: #4b367f;
+}
+.tie-btn {
+  white-space: nowrap;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-color: #6b4fbb;
+  color: #4b367f;
+}

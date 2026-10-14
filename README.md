@@ -26,7 +26,8 @@ PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di 
 | **Register Excel `RA_Register`**: semua hasil footing otomatis masuk; klik baris → sorot di PDF | ✅ kode siap, **belum diuji di Excel** |
 | **Sum snip**: tarik kotak → jumlah, bandingkan dengan total (toleransi 0), Kirim ke Excel, sekaligus koreksi footing | ✅ kode siap, **belum diuji di Excel** |
 | Tombol **↶ Urungkan** dan daftar **Koreksi manual** | ✅ |
-| Cross footing horizontal (mutasi ekuitas, aset tetap), tie yang dikonfirmasi ke register | ⏳ langkah berikutnya |
+| **Cross footing horizontal** (mutasi ekuitas, aset tetap, segmen): tabel mutasi dicek dua arah | ✅ kode siap, **belum diuji di Excel** |
+| **Tie dikonfirmasi** (✓ Tie) → tanda ⇄ di PDF + baris "Tie" di RA_Register | ✅ kode siap, **belum diuji di Excel** |
 
 ## Cara memasang (sekali saja)
 
@@ -95,6 +96,16 @@ PDF dibaca **di dalam browser** dan tidak diunggah ke mana pun. Yang di-host di 
 - [ ] Coba juga dari **jendela besar** (panel samping tetap terbuka).
 - [ ] Hapus sum snip di daftar → klik **↶ Urungkan** → kembali.
 - [ ] Klik angka biasa → **Ini total** → muncul di daftar **Koreksi manual** → **Batalkan** (atau ↶ Urungkan).
+
+### Cross footing & tie
+
+- [ ] `samples/contoh-footing.pdf` → **Jalankan footing** → ringkasan "Cross footing baris: ⇆F 17 · ⇆✗ 3".
+      Hal. 4 (aset tetap): baris "Jumlah biaya perolehan" dan "Nilai tercatat" bertanda **⇆✗ 1**; hal. 3 (ekuitas):
+      baris "Saldo 31 Desember 2025" bertanda **⇆✗ -1**. Klik total barisnya → baris dibingkai garis putus-putus.
+- [ ] Klik "Persediaan" 40.355.300 di hal. 1 → di "Lokasi lain" klik **✓ Tie** → tanda ⇄ muncul; RA_Register
+      mendapat baris jenis "Tie". **↶ Urungkan** membatalkannya.
+- [ ] Draft asli: tabel mutasi aset tetap / ekuitas — apakah baris dicek benar? Bila salah, kirim diagnostik
+      (angka disamarkan).
 
 ### Register Excel (RA_Register)
 

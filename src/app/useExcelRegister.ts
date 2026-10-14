@@ -163,8 +163,8 @@ export function useExcelRegister(
   }, [r.pdf]);
   const sync = useCallback(() => {
     const { r } = latest.current;
-    if (!r.pdf || (!r.footing && r.snips.length === 0 && !synced.current)) return;
-    const rows = registerRows(r.footing, r.snipEvals, r.tokens, r.pdf.fingerprint);
+    if (!r.pdf || (!r.footing && r.snips.length === 0 && r.ties.length === 0 && !synced.current)) return;
+    const rows = registerRows(r.footing, r.snipEvals, r.tokens, r.pdf.fingerprint, r.tieEvals);
     synced.current = true;
     if (mode === "pane") {
       write(rows, false);
@@ -186,10 +186,10 @@ export function useExcelRegister(
   }, [mode, write, paneMirror]);
 
   useEffect(() => {
-    if (mode === "off" || !r.pdf || (!r.footing && r.snips.length === 0 && !synced.current)) return;
+    if (mode === "off" || !r.pdf || (!r.footing && r.snips.length === 0 && r.ties.length === 0 && !synced.current)) return;
     const t = window.setTimeout(sync, 800);
     return () => window.clearTimeout(t);
-  }, [mode, r.footing, r.snipEvals, r.pdf, sync]);
+  }, [mode, r.footing, r.snipEvals, r.tieEvals, r.pdf, sync]);
 
   return { mode, status, busy, sync, receiveChunk, handleParentMessage };
 }

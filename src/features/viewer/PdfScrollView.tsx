@@ -53,6 +53,8 @@ interface Props {
   activeFootingId: string | null;
   /** Cross footing horizontal per angka total baris. */
   crossByTotal: Map<string, CrossFooting> | null;
+  /** Angka dengan tie terkonfirmasi. */
+  tiedIds: Set<string>;
   /** Mode sum snip: tarik kotak di halaman. */
   snipMode: boolean;
   onSnipBox: (page: number, box: PdfBox) => void;
@@ -213,6 +215,7 @@ export function PdfScrollView(props: Props) {
             blocks={props.blocks?.get(i + 1) ?? NO_BLOCKS}
             activeFootingId={props.activeFootingId}
             crossByTotal={props.crossByTotal}
+            tiedIds={props.tiedIds}
             snipMode={props.snipMode}
             onSnipBox={props.onSnipBox}
             snipShapes={props.snipShapes.get(i + 1) ?? NO_SHAPES}
@@ -250,6 +253,7 @@ interface PageProps {
   blocks: FootingBlock[];
   activeFootingId: string | null;
   crossByTotal: Map<string, CrossFooting> | null;
+  tiedIds: Set<string>;
   snipMode: boolean;
   onSnipBox: (page: number, box: PdfBox) => void;
   snipShapes: SnipShape[];
@@ -270,6 +274,7 @@ const PageView = memo(function PageView({
   blocks,
   activeFootingId,
   crossByTotal,
+  tiedIds,
   snipMode,
   onSnipBox,
   snipShapes,
@@ -406,7 +411,9 @@ const PageView = memo(function PageView({
           }
           // Tanda vertikal (bila angka ini memang total/komponen vertikal) + tanda cross footing baris.
           const vertical = st && !inBlock && !(cx && !st.footingId) ? badgeText(st) : null;
-          const badge = [vertical, cx ? `⇆${crossShort(cx)}` : null].filter(Boolean).join(" ");
+          const tied = tiedIds.has(t.id);
+          if (tied) title += "\n⇄ Tie dikonfirmasi reviewer";
+          const badge = [vertical, cx ? `⇆${crossShort(cx)}` : null, tied ? "⇄" : null].filter(Boolean).join(" ");
           const badgeMark = cx?.status === "fail" || st?.mark === "fail" ? "fail" : (st?.mark ?? (cx?.status === "foot" ? "foot" : "open"));
           return (
             <span key={t.id} className="num-wrap">

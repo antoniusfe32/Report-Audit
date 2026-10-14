@@ -97,10 +97,24 @@ describe("planRegisterUpdate", () => {
   });
 
   it("baris dokumen lain dan jenis lain tidak disentuh", () => {
-    const existing = [row("F-a", "F cocok", "", "lainlainlain"), row("T-1", "Tie", "", "ab12cd34ef56", "Tie")];
+    const existing = [row("F-a", "F cocok", "", "lainlainlain"), row("M-1", "manual", "", "ab12cd34ef56", "Catatan manual")];
     const plan = planRegisterUpdate(existing, [row("F-z", "F cocok")]);
     expect(plan.updates).toEqual([]);
     expect(plan.stale).toEqual([]);
     expect(plan.appends).toHaveLength(1);
+  });
+});
+
+describe("tieRows", () => {
+  it("tie dikonfirmasi tercatat dengan dua lokasi; tanda berlawanan dicatat, bukan dihilangkan", async () => {
+    const { evaluateTie, makeTie } = await import("../tie/ties");
+    const byId = new Map(s.tokens.map((t) => [t.id, t]));
+    const a = s.tokens.find((t) => t.page === 1 && t.label === "Persediaan" && t.text === "40.355.300")!;
+    const b = s.tokens.find((t) => t.page === 5 && t.label === "Jumlah" && t.text === "40.355.300")!;
+    const { tieRows } = await import("./register");
+    const [row] = tieRows([evaluateTie(makeTie(a.id, b.id), byId)], FP);
+    expect([row[COL.type], row[COL.status], row[COL.difference]]).toEqual(["Tie", "Tie ✓", 0]);
+    expect(String(row[COL.label])).toContain("⇄");
+    expect(parseLocation(row[COL.location])!.ids.sort()).toEqual([a.id, b.id].sort());
   });
 });

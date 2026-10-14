@@ -15,6 +15,11 @@ interface Props {
   actions?: ReactNode;
   /** Bagian tambahan di bawah detail angka (mis. detail footing). */
   extra?: ReactNode;
+  /** Id angka yang sudah dikonfirmasi tie dengan angka terpilih; null = fitur tie tidak ditampilkan. */
+  tiedIds?: Set<string> | null;
+  onToggleTie?: (other: NumberToken, tied: boolean) => void;
+  /** Angka yang sudah di-tie dengan angka terpilih tetapi tidak muncul di daftar (mis. nilai berubah). */
+  tiedTokens?: NumberToken[];
 }
 
 const HINT_LABEL: Record<NumberToken["hint"], string> = {
@@ -23,7 +28,17 @@ const HINT_LABEL: Record<NumberToken["hint"], string> = {
   "likely-year": "Kemungkinan tahun",
 };
 
-export function SelectionPanel({ token, occurrences, locale, onGoTo, actions, extra }: Props) {
+export function SelectionPanel({
+  token,
+  occurrences,
+  locale,
+  onGoTo,
+  actions,
+  extra,
+  tiedIds,
+  onToggleTie,
+  tiedTokens = [],
+}: Props) {
   if (!token) {
     return (
       <section className="panel muted">
@@ -89,7 +104,7 @@ export function SelectionPanel({ token, occurrences, locale, onGoTo, actions, ex
       )}
       <ul className="occ-list">
         {occurrences.map((o) => (
-          <li key={o.token.id}>
+          <li key={o.token.id} className="snip-item">
             <button type="button" className={`occ occ-${o.match}`} onClick={() => onGoTo(o.token)}>
               <span className="occ-page">Hal. {o.token.page}</span>
               <span className="occ-label">{o.token.label || "(tanpa label)"}</span>
@@ -99,9 +114,41 @@ export function SelectionPanel({ token, occurrences, locale, onGoTo, actions, ex
                   tanda berlawanan
                 </span>
               )}
+              {tiedIds?.has(o.token.id) && <span className="tag tie">⇄ tie dikonfirmasi</span>}
             </button>
+            {tiedIds && onToggleTie && (
+              <button
+                type="button"
+                className={tiedIds.has(o.token.id) ? "link" : "tie-btn"}
+                onClick={() => onToggleTie(o.token, tiedIds.has(o.token.id))}
+                title={
+                  tiedIds.has(o.token.id)
+                    ? "Batalkan konfirmasi tie"
+                    : "Konfirmasi: kedua angka ini memang sama (dicatat di register Excel)"
+                }
+              >
+                {tiedIds.has(o.token.id) ? "Batalkan" : "✓ Tie"}
+              </button>
+            )}
           </li>
         ))}
+        {tiedTokens
+          .filter((t) => !occurrences.some((o) => o.token.id === t.id))
+          .map((t) => (
+            <li key={t.id} className="snip-item">
+              <button type="button" className="occ occ-sign-mismatch" onClick={() => onGoTo(t)}>
+                <span className="occ-page">Hal. {t.page}</span>
+                <span className="occ-label">{t.label || "(tanpa label)"}</span>
+                <span className="occ-val mono">{t.text}</span>
+                <span className="tag neg">⇄ tie dikonfirmasi, nilai kini berbeda</span>
+              </button>
+              {onToggleTie && (
+                <button type="button" className="link" onClick={() => onToggleTie(t, true)}>
+                  Batalkan
+                </button>
+              )}
+            </li>
+          ))}
       </ul>
       <p className="muted small disclaimer">
         Nilai yang sama belum tentu berhubungan. Keputusan tie tetap di tangan reviewer.

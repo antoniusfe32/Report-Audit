@@ -14,6 +14,7 @@ import { formatAmount } from "../domain/parsing/parseAmount";
 import { formatDiff } from "../domain/footing/verticalFooting";
 import type { PdfBox } from "../domain/pdf/numberTokens";
 import { SnipPanel } from "../features/snip/SnipPanel";
+import { tieId, tiedWith } from "../domain/tie/ties";
 import type { SnipShape } from "../features/viewer/PdfScrollView";
 import {
   onParentMessage,
@@ -211,6 +212,9 @@ export function App() {
     return ids;
   }, [r.footing, activeFootingId]);
 
+  // Angka yang punya tie terkonfirmasi (diberi tanda ⇄ di PDF).
+  const tiedTokenIds = useMemo(() => new Set(r.ties.flatMap((t) => [t.a, t.b])), [r.ties]);
+
   // Cross footing horizontal: per total baris, dan baris yang sedang dipilih.
   const crossByTotal = useMemo(
     () => (r.footing ? new Map(r.footing.cross.map((c) => [c.totalId, c])) : null),
@@ -400,6 +404,7 @@ export function App() {
               blocks={blocks}
               activeFootingId={activeCross && !activeFootingId ? activeCross.id : activeFootingId}
               crossByTotal={crossByTotal}
+              tiedIds={tiedTokenIds}
               snipMode={snipMode}
               onSnipBox={onSnipBox}
               snipShapes={snipShapes}
@@ -469,6 +474,13 @@ export function App() {
           )}
           <SelectionPanel
             token={r.selected}
+            tiedIds={r.selected ? new Set(tiedWith(r.selected.id, r.ties)) : null}
+            tiedTokens={r.selected ? tiedWith(r.selected.id, r.ties).flatMap((id) => tokensById.get(id) ?? []) : []}
+            onToggleTie={(other, tied) => {
+              if (!r.selected) return;
+              if (tied) r.removeTie(tieId(r.selected.id, other.id));
+              else r.addTie(r.selected.id, other.id);
+            }}
             occurrences={r.occurrences}
             locale={r.locale}
             onGoTo={r.goTo}

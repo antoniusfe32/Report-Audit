@@ -19,6 +19,7 @@ import { detectScale, effectiveScales, pageText, summarizeScales, type Scale } f
 import { getPageInfo, getPageLayout, loadPdf, PdfLoadError, type LoadedPdf } from "../services/pdf/pdfService";
 import type { SessionState } from "./session";
 import { evaluateSnip, type Snip } from "../domain/snip/sumSnip";
+import { evaluateTie, makeTie, type Tie } from "../domain/tie/ties";
 
 export interface AppError {
   message: string;
@@ -55,8 +56,9 @@ export function useReviewer() {
   const [layoutWanted, setLayoutWanted] = useState(false);
   const [overrides, setOverrides] = useState<Overrides>({});
   const [snips, setSnips] = useState<Snip[]>([]);
-  /** Riwayat koreksi (koreksi manual & sum snip) untuk tombol Urungkan. */
-  const history = useRef<{ overrides: Overrides; snips: Snip[]; label: string }[]>([]);
+  const [ties, setTies] = useState<Tie[]>([]);
+  /** Riwayat koreksi (koreksi manual, sum snip, tie) untuk tombol Urungkan. */
+  const history = useRef<{ overrides: Overrides; snips: Snip[]; ties: Tie[]; label: string }[]>([]);
   const [lastAction, setLastAction] = useState<string | null>(null);
   /** Sum snip yang sedang disorot (mis. setelah klik barisnya di register Excel). */
   const [activeSnipId, setActiveSnipId] = useState<string | null>(null);
@@ -106,6 +108,7 @@ export function useReviewer() {
         setFootingOn(st?.footingOn ?? false);
         setOverrides(st?.overrides ?? {});
         setSnips(st?.snips ?? []);
+        setTies(st?.ties ?? []);
         history.current = [];
         setLastAction(null);
         setScaleChoice(st?.scaleChoice ?? "auto");
@@ -195,8 +198,8 @@ export function useReviewer() {
   );
 
   // ---------------- Koreksi (dengan riwayat untuk Urungkan) ----------------
-  const latestCorrections = useRef({ overrides, snips });
-  latestCorrections.current = { overrides, snips };
+  const latestCorrections = useRef({ overrides, snips, ties });
+  latestCorrections.current = { overrides, snips, ties };
   const remember = useCallback((label: string) => {
     history.current.push({ ...latestCorrections.current, label });
     if (history.current.length > 50) history.current.shift();
@@ -248,8 +251,31 @@ export function useReviewer() {
     if (!prev) return;
     setOverrides(prev.overrides);
     setSnips(prev.snips);
+    setTies(prev.ties);
     setLastAction(history.current.length ? `Dibatalkan. Sebelumnya: ${history.current[history.current.length - 1].label}` : null);
   }, []);
+
+  const addTie = useCallback(
+    (x: string, y: string) => {
+      remember("Tie dikonfirmasi");
+      const tie = makeTie(x, y);
+      setTies((list) => (list.some((t) => t.id === tie.id) ? list : [...list, tie]));
+    },
+    [remember],
+  );
+
+  const removeTie = useCallback(
+    (id: string) => {
+      remember("Konfirmasi tie dibatalkan");
+      setTies((list) => list.filter((t) => t.id !== id));
+    },
+    [remember],
+  );
+
+  const tieEvals = useMemo(() => {
+    const byId = new Map(tokens.map((t) => [t.id, t]));
+    return ties.map((t) => evaluateTie(t, byId));
+  }, [ties, tokens]);
 
   /** Evaluasi semua sum snip tersimpan (tetap tersedia walaupun footing otomatis tidak dijalankan). */
   const snipEvals = useMemo(() => {
@@ -282,12 +308,14 @@ export function useReviewer() {
     setOverrides((v) => (JSON.stringify(v) === JSON.stringify(st.overrides) ? v : { ...st.overrides }));
     const remoteSnips = st.snips ?? [];
     setSnips((v) => (JSON.stringify(v) === JSON.stringify(remoteSnips) ? v : remoteSnips));
+    const remoteTies = st.ties ?? [];
+    setTies((v) => (JSON.stringify(v) === JSON.stringify(remoteTies) ? v : remoteTies));
   }, []);
 
   /** Progres review saat ini (dipindahkan bersama PDF ke/dari jendela besar). */
   const session: SessionState = useMemo(
-    () => ({ locale, overrides, scaleChoice, footingOn, page, snips }),
-    [locale, overrides, scaleChoice, footingOn, page, snips],
+    () => ({ locale, overrides, scaleChoice, footingOn, page, snips, ties }),
+    [locale, overrides, scaleChoice, footingOn, page, snips, ties],
   );
 
   return {
@@ -325,6 +353,10 @@ export function useReviewer() {
     clearOverrides,
     snips,
     snipEvals,
+    ties,
+    tieEvals,
+    addTie,
+    removeTie,
     addSnip,
     removeSnip,
     undo,
